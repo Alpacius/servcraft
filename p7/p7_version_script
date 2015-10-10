@@ -1,0 +1,11 @@
+LIBP7_0.1 {
+    global:
+        p7_coro_yield; p7_coro_create; p7_init;
+        p7_timed_event; p7_timed_event_assoc;
+        p7_iowrap_; p7_timedout_; p7_timeout_reset; p7_timer_clean_;
+        p7_root_alloc_get_allocator; p7_root_alloc_ruin;
+        p7_spinlock_preinit; p7_spinlock_tlinit;
+        p7_spinlock_create; p7_spinlock_destroy; p7_spinlock_lock; p7_spinlock_unlock;
+    local:
+        *;
+};
