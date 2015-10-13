@@ -58,7 +58,7 @@ struct p7_coro *p7_coro_new_(void (*entry)(void *), void *arg, size_t stack_size
         __auto_type allocator = local_root_alloc_get_proxy();
         coro = scraft_allocate(allocator, (sizeof(struct p7_coro)));
         if (coro != NULL) {
-            (coro->carrier_id = carrier_id), (coro->cntx = cntx);
+            (coro->carrier_id = carrier_id), (coro->cntx = cntx), (coro->following = NULL);
             (coro->func_info.entry = entry), (coro->func_info.arg = arg);
             coro->timedout = 0;
         }
@@ -105,6 +105,7 @@ static
 void p7_coro_delete(struct p7_coro *coro) {
     if (self_view->sched_info.coro_pool_size < self_view->sched_info.coro_pool_cap) {
         self_view->sched_info.coro_pool_size++;
+        coro->following = NULL;
         list_add_tail(&(coro->lctl), &(self_view->sched_info.coro_pool_tl));
     } else {
         p7_coro_delete_(coro);
@@ -141,6 +142,7 @@ struct p7_carrier *p7_carrier_prepare(unsigned carrier_id, unsigned nevents, voi
         carrier->sched_info.running = NULL;
         (carrier->startup.at_startup = NULL), (carrier->startup.arg_startup = NULL);
         init_list_head(&(carrier->sched_info.coro_queue));
+        init_list_head(&(carrier->sched_info.blocking_queue));
         init_list_head(&(carrier->sched_info.rq_pool_tl));
         init_list_head(&(carrier->sched_info.coro_pool_tl));
         init_list_head(&(carrier->sched_info.waitk_pool_tl));
@@ -349,6 +351,10 @@ void limbo_loop(void *unused) {
     while (1) {
         struct p7_coro *current = self_carrier->sched_info.running;
         list_del(&(current->lctl));
+        if (current->following != NULL) {
+            list_del(&(current->following->lctl));
+            list_add_head(&(current->following->lctl), &(self_carrier->sched_info.coro_queue));
+        }
         self_carrier->sched_info.running = NULL;
         p7_coro_delete(current);
         swapcontext(&(self_carrier->mgr_cntx.limbo->cntx->uc), &(self_carrier->mgr_cntx.sched->uc));
@@ -552,6 +558,16 @@ void p7_coro_yield(void) {
 void p7_coro_create(void (*entry)(void *), void *arg, size_t stack_size) {
     coro_create_request(entry, arg, stack_size);
     p7_coro_yield();
+}
+
+void p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size) {
+    struct p7_coro *coro = p7_coro_new(entry, arg, stack_size, self_view->carrier_id, self_view->mgr_cntx.limbo), *last = self_view->sched_info.running;
+    coro->following = last;
+    list_del(&(last->lctl));
+    list_add_tail(&(last->lctl), &(self_view->sched_info.blocking_queue));
+    list_add_head(&(coro->lctl), &(self_view->sched_info.coro_queue));
+    self_view->sched_info.running = NULL;
+    swapcontext(&(last->cntx->uc), &(self_view->mgr_cntx.sched->uc));
 }
 
 int p7_iowrap_(int fd, int rdwr) {

@@ -6,6 +6,7 @@ LIBP7_0.1 {
         p7_root_alloc_get_allocator; p7_root_alloc_ruin;
         p7_spinlock_preinit; p7_spinlock_tlinit;
         p7_spinlock_create; p7_spinlock_destroy; p7_spinlock_lock; p7_spinlock_unlock;
+        p7_coro_concat;
     local:
         *;
 };
