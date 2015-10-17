@@ -451,7 +451,7 @@ void *sched_loop(void *arg) {
         pthread_spin_unlock(&(self->sched_info.mutex));
         */
 
-        h = &(self->sched_info.rq_queues[active_queue_at[__atomic_xor_fetch(&(self->sched_info.active_idx), (uint8_t) -1, __ATOMIC_SEQ_CST)]]);
+        h = &(self->sched_info.rq_queues[active_queue_at[__atomic_fetch_xor(&(self->sched_info.active_idx), (uint8_t) -1, __ATOMIC_SEQ_CST)]]);
         if (!list_is_empty(h)) {
             list_foreach_remove(p, h, t) {
                 list_del(t);
