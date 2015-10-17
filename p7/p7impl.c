@@ -26,6 +26,8 @@ static struct p7_carrier **carriers = NULL;
 static unsigned next_carrier = 0, ncarriers = 1;
 static __thread struct p7_carrier *self_view = NULL;
 
+static uint8_t active_queue_at[256] = { [0] = 0, [255] = 1 };
+
 static
 struct p7_coro_cntx *p7_coro_cntx_new_(void (*entry)(void *), void *arg, size_t stack_size, struct p7_limbo *limbo) {
     __auto_type allocator = local_root_alloc_get_proxy();
@@ -141,6 +143,7 @@ struct p7_carrier *p7_carrier_prepare(unsigned carrier_id, unsigned nevents, voi
         carrier->carrier_id = carrier_id;
         carrier->sched_info.running = NULL;
         (carrier->startup.at_startup = NULL), (carrier->startup.arg_startup = NULL);
+        carrier->sched_info.active_idx = P7_ACTIVE_IDX_MAGIC;
         init_list_head(&(carrier->sched_info.coro_queue));
         init_list_head(&(carrier->sched_info.blocking_queue));
         init_list_head(&(carrier->sched_info.rq_pool_tl));
@@ -441,12 +444,14 @@ void *sched_loop(void *arg) {
         }
 
         list_ctl_t *p, *t, *h;
+        /*
         pthread_spin_lock(&(self->sched_info.mutex));
         self->sched_info.active_rq_queue = &(self->sched_info.rq_queues[idx_active = 1 - idx_active]);
         self->sched_info.local_rq_queue = &(self->sched_info.rq_queues[1 - idx_active]);
         pthread_spin_unlock(&(self->sched_info.mutex));
+        */
 
-        h = self->sched_info.local_rq_queue;
+        h = &(self->sched_info.rq_queues[active_queue_at[__atomic_xor_fetch(&(self->sched_info.active_idx), (uint8_t) -1, __ATOMIC_SEQ_CST)]]);
         if (!list_is_empty(h)) {
             list_foreach_remove(p, h, t) {
                 list_del(t);
@@ -489,9 +494,12 @@ void coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
     if (next_load->carrier_id != self_view->carrier_id) {
         struct p7_coro_rq *rq = p7_coro_rq_new(entry, arg, stack_size);
         if (rq != NULL) {
+            /*
             pthread_spin_lock(&(next_load->sched_info.mutex));
             list_add_tail(&(rq->lctl), next_load->sched_info.active_rq_queue);
             pthread_spin_unlock(&(next_load->sched_info.mutex));
+            */
+            list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[active_queue_at[next_load->sched_info.active_idx]]));
             if (atom_fetch_int32(next_load->iomon_info.is_blocking)) {
                 char wake = 'w';    // wwwwwwwwwwwwwwwwwwwwwwww
                 write(next_load->iomon_info.condpipe[1], &wake, 1);

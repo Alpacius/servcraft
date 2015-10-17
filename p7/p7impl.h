@@ -96,6 +96,7 @@ struct p7_carrier {
         list_ctl_t coro_queue, blocking_queue;
         list_ctl_t rq_pool_tl, coro_pool_tl, waitk_pool_tl;
         list_ctl_t rq_queues[2], *active_rq_queue, *local_rq_queue;
+        volatile uint8_t active_idx;
         pthread_spinlock_t mutex;
         pthread_spinlock_t rq_pool_lock, waitk_pool_lock;
         struct p7_coro *running;
@@ -130,5 +131,7 @@ struct p7_carrier {
 #define     P7_WAITK_POOL_CAP   128
 
 #define     P7_NTIMERS_INIT     128
+
+#define     P7_ACTIVE_IDX_MAGIC 0
 
 #endif      // _P7_IMPL_H_
