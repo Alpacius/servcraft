@@ -158,6 +158,7 @@ struct p7_carrier *p7_carrier_prepare(unsigned carrier_id, unsigned nevents, voi
         pthread_spin_init(&(carrier->sched_info.mutex), PTHREAD_PROCESS_PRIVATE);
         pthread_spin_init(&(carrier->sched_info.rq_pool_lock), PTHREAD_PROCESS_PRIVATE);
         pthread_spin_init(&(carrier->sched_info.waitk_pool_lock), PTHREAD_PROCESS_PRIVATE);
+        pthread_spin_init(&(carrier->sched_info.rq_queue_lock), PTHREAD_PROCESS_PRIVATE);
         carrier->sched_info.timer_heap = heap_create(p7_timer_compare);
         (carrier->mgr_cntx.limbo = limbo), (carrier->mgr_cntx.sched = p7_coro_cntx_new(entry, arg, 1024 * 2, NULL)), 
         carrier->iomon_info.maxevents = nevents;
@@ -499,7 +500,11 @@ void coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
             list_add_tail(&(rq->lctl), next_load->sched_info.active_rq_queue);
             pthread_spin_unlock(&(next_load->sched_info.mutex));
             */
-            list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[active_queue_at[next_load->sched_info.active_idx]]));
+            uint8_t active_index = active_queue_at[next_load->sched_info.active_idx];
+            // TODO HEAVY performace loss
+            pthread_spin_lock(&(next_load->sched_info.rq_queue_lock));
+            list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[active_index]));
+            pthread_spin_unlock(&(next_load->sched_info.rq_queue_lock));
             if (atom_fetch_int32(next_load->iomon_info.is_blocking)) {
                 char wake = 'w';    // wwwwwwwwwwwwwwwwwwwwwwww
                 write(next_load->iomon_info.condpipe[1], &wake, 1);
