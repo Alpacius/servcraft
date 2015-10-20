@@ -501,7 +501,7 @@ void coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
             pthread_spin_unlock(&(next_load->sched_info.mutex));
             */
             uint8_t active_index = active_queue_at[next_load->sched_info.active_idx];
-            // TODO HEAVY performace loss
+            // TODO not-so-heavy performace loss
             pthread_spin_lock(&(next_load->sched_info.rq_queue_lock));
             list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[active_index]));
             pthread_spin_unlock(&(next_load->sched_info.rq_queue_lock));
