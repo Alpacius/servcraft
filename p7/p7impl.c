@@ -131,7 +131,7 @@ struct p7_limbo *p7_limbo_new(void (*entry)(void *)) {
 }
 
 static
-struct p7_carrier *p7_carrier_prepare(unsigned carrier_id, unsigned nevents, void (*limbo_entry)(void *), void (*entry)(void *), void *arg) {
+struct p7_carrier *p7_carrier_prepare(uint32_t ncarriers, unsigned carrier_id, unsigned nevents, void (*limbo_entry)(void *), void (*entry)(void *), void *arg) {
     __auto_type allocator = local_root_alloc_get_proxy();
     struct p7_carrier *carrier = scraft_allocate(allocator, sizeof(struct p7_carrier));
     struct epoll_event *evqueue = scraft_allocate(allocator, sizeof(struct epoll_event) * nevents);
@@ -140,6 +140,12 @@ struct p7_carrier *p7_carrier_prepare(unsigned carrier_id, unsigned nevents, voi
         scraft_deallocate(allocator, ptr);
     }
     if ( (carrier != NULL) && (evqueue != NULL) && (limbo != NULL) ) {
+        carrier->sched_info.rq_buffering = scraft_allocate(allocator, sizeof(*(carrier->sched_info.rq_buffering)) * ncarriers);
+        carrier->sched_info.rq_buffering->ncarriers = ncarriers;
+        for (uint32_t buffering_idx = 0; buffering_idx < ncarriers; buffering_idx++) {
+            init_list_head(&(carrier->sched_info.rq_buffering[buffering_idx].rq_queues[0]));
+            init_list_head(&(carrier->sched_info.rq_buffering[buffering_idx].rq_queues[1]));
+        }
         carrier->carrier_id = carrier_id;
         carrier->sched_info.running = NULL;
         (carrier->startup.at_startup = NULL), (carrier->startup.arg_startup = NULL);
@@ -452,14 +458,17 @@ void *sched_loop(void *arg) {
         pthread_spin_unlock(&(self->sched_info.mutex));
         */
 
-        h = &(self->sched_info.rq_queues[active_queue_at[__atomic_fetch_xor(&(self->sched_info.active_idx), (uint8_t) -1, __ATOMIC_SEQ_CST)]]);
-        if (!list_is_empty(h)) {
-            list_foreach_remove(p, h, t) {
-                list_del(t);
-                struct p7_coro_rq *rq = container_of(t, struct p7_coro_rq, lctl);
-                struct p7_coro *coro = p7_coro_new(rq->func_info.entry, rq->func_info.arg, rq->stack_info.stack_nunits, self->carrier_id, self->mgr_cntx.limbo);
-                list_add_tail(&(coro->lctl), &(self->sched_info.coro_queue));
-                p7_coro_rq_delete(rq);
+        uint8_t active_idx = active_queue_at[__atomic_fetch_xor(&(self->sched_info.active_idx), (uint8_t) -1, __ATOMIC_SEQ_CST)];
+        for (uint32_t buffering_idx = 0; buffering_idx < self->sched_info.rq_buffering->ncarriers; buffering_idx++) {
+            h = &(self->sched_info.rq_buffering[buffering_idx].rq_queues[active_idx]);
+            if (!list_is_empty(h)) {
+                list_foreach_remove(p, h, t) {
+                    list_del(t);
+                    struct p7_coro_rq *rq = container_of(t, struct p7_coro_rq, lctl);
+                    struct p7_coro *coro = p7_coro_new(rq->func_info.entry, rq->func_info.arg, rq->stack_info.stack_nunits, self->carrier_id, self->mgr_cntx.limbo);
+                    list_add_tail(&(coro->lctl), &(self->sched_info.coro_queue));
+                    p7_coro_rq_delete(rq);
+                }
             }
         }
 
@@ -502,9 +511,12 @@ void coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
             */
             uint8_t active_index = active_queue_at[next_load->sched_info.active_idx];
             // TODO HEAVY performace loss
+            /*
             pthread_spin_lock(&(next_load->sched_info.rq_queue_lock));
             list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[active_index]));
             pthread_spin_unlock(&(next_load->sched_info.rq_queue_lock));
+            */
+            list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_buffering[self_view->carrier_id].rq_queues[active_index]));
             if (atom_fetch_int32(next_load->iomon_info.is_blocking)) {
                 char wake = 'w';    // wwwwwwwwwwwwwwwwwwwwwwww
                 write(next_load->iomon_info.condpipe[1], &wake, 1);
@@ -616,10 +628,10 @@ int p7_init(unsigned nthreads, void (*at_startup)(void *), void *arg) {
     __auto_type allocator = local_root_alloc_get_proxy();
     carriers = scraft_allocate(allocator, sizeof(struct p7_carrier *) * ncarriers);
     int carrier_idx;
-    carriers[0] = p7_carrier_prepare(0, 1024, limbo_loop, sched_loop_cntx_wraper, NULL);
+    carriers[0] = p7_carrier_prepare(nthreads, 0, 1024, limbo_loop, sched_loop_cntx_wraper, NULL);
     self_view = carriers[0];
     for (carrier_idx = 1; carrier_idx < ncarriers; carrier_idx++)
-        carriers[carrier_idx] = p7_carrier_prepare(carrier_idx, 1024, limbo_loop, NULL, NULL);
+        carriers[carrier_idx] = p7_carrier_prepare(nthreads, carrier_idx, 1024, limbo_loop, NULL, NULL);
     struct p7_coro *main_ctlflow = p7_coro_new(NULL, NULL, 0, 0, NULL);
     getcontext(&(main_ctlflow->cntx->uc));
     list_add_tail(&(main_ctlflow->lctl), &(carriers[0]->sched_info.coro_queue));
