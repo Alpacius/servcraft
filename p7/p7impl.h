@@ -96,7 +96,6 @@ struct p7_carrier {
         list_ctl_t coro_queue, blocking_queue;
         list_ctl_t rq_pool_tl, coro_pool_tl, waitk_pool_tl;
         list_ctl_t rq_queues[2], *active_rq_queue, *local_rq_queue;
-        struct { list_ctl_t rq_queues[2]; uint32_t ncarriers; } *rq_buffering;
         volatile uint8_t active_idx;
         pthread_spinlock_t mutex;
         pthread_spinlock_t rq_queue_lock;
