@@ -2,7 +2,7 @@ P7_SOURCES := $(wildcard *.c)
 P7_OBJECTS := $(patsubst %.c,%.o, $(P7_SOURCES))
 
 P7_VERSION_SCRIPT = p7_version_script
-P7_VERSION = 0.1.0
+P7_VERSION = 0.2.0
 P7_TARGET = libp7.so.$(P7_VERSION)
 
 CFLAGS := -fPIC -c -O2 -g

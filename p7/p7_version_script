@@ -10,3 +10,10 @@ LIBP7_0.1 {
     local:
         *;
 };
+
+LIBP7_0.2 {
+    global:
+        p7_spinlock_init;
+    local:
+        *;
+};

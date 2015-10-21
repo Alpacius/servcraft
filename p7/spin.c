@@ -66,6 +66,11 @@ struct p7_spinlock *p7_spinlock_create(uint32_t spintime) {
     return spin;
 }
 
+// since 0.2.0
+void p7_spinlock_init(struct p7_spinlock *spin, uint32_t spintime) {
+    (spin->lock = 0), (spin->spintime = spintime), (spin->from = p7_carrier_self_tl()->carrier_id), (spin->is_free = P7_SPINLOCK_LOCAL);
+}
+
 void p7_spinlock_destroy(struct p7_spinlock *spin) {
     if (likely(spin->from == p7_carrier_self_tl()->carrier_id)) {
         switch(spin->is_free) {
@@ -87,6 +92,7 @@ void p7_spinlock_destroy(struct p7_spinlock *spin) {
                 }
                 break;
             }
+            case P7_SPINLOCK_LOCAL:     // XXX reserved
             default:
                 break;
         }
