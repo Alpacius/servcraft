@@ -62,13 +62,14 @@ struct p7_spinlock *p7_spinlock_thunk_alloc(void) {
 
 struct p7_spinlock *p7_spinlock_create(uint32_t spintime) {
     struct p7_spinlock *spin = p7_spinlock_thunk_alloc();
-    (spin != NULL) && ((spin->lock = 0), (spin->spintime = spintime), (spin->from = p7_carrier_self_tl()->carrier_id));
+    (spin != NULL) && ((__atomic_store_n(&(spin->lock), 0, __ATOMIC_SEQ_CST), 0), (spin->spintime = spintime), (spin->from = p7_carrier_self_tl()->carrier_id));
     return spin;
 }
 
 // since 0.2.0
 void p7_spinlock_init(struct p7_spinlock *spin, uint32_t spintime) {
-    (spin->lock = 0), (spin->spintime = spintime), (spin->from = p7_carrier_self_tl()->carrier_id), (spin->is_free = P7_SPINLOCK_LOCAL);
+    __atomic_store_n(&(spin->lock), 0, __ATOMIC_SEQ_CST);
+    (spin->spintime = spintime), (spin->from = p7_carrier_self_tl()->carrier_id), (spin->is_free = P7_SPINLOCK_LOCAL);
 }
 
 void p7_spinlock_destroy(struct p7_spinlock *spin) {
@@ -100,8 +101,9 @@ void p7_spinlock_destroy(struct p7_spinlock *spin) {
 }
 
 void p7_spinlock_lock(struct p7_spinlock *spin) {
-    uint32_t ret, spincount = 0;
+    uint32_t ret, spincount;
     for (;;) {
+        spincount = 0;
         do {
             (ret = __atomic_exchange_n(&(spin->lock), 1, __ATOMIC_SEQ_CST)) && (spincount++);
         } while (ret && (spin->spintime - spincount));
