@@ -3,6 +3,7 @@
 
 #include    "./p7impl.h"
 #include    "./spin.h"
+#include    "./rwspin.h"
 
 void p7_coro_yield(void);
 void p7_coro_create(void (*entry)(void *), void *arg, size_t stack_size);
