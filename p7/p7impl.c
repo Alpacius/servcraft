@@ -500,10 +500,10 @@ void coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
             list_add_tail(&(rq->lctl), next_load->sched_info.active_rq_queue);
             pthread_spin_unlock(&(next_load->sched_info.mutex));
             */
-            uint8_t active_index = active_queue_at[__atomic_load_n(&(next_load->sched_info.active_idx), __ATOMIC_SEQ_CST)];
+            //uint8_t active_index = active_queue_at[__atomic_load_n(&(next_load->sched_info.active_idx), __ATOMIC_SEQ_CST)];
             // TODO not-so-heavy performace loss
             pthread_spin_lock(&(next_load->sched_info.rq_queue_lock));
-            list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[active_index]));
+            list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[active_queue_at[__atomic_load_n(&(next_load->sched_info.active_idx), __ATOMIC_SEQ_CST)]]));
             pthread_spin_unlock(&(next_load->sched_info.rq_queue_lock));
             if (atom_fetch_int32(next_load->iomon_info.is_blocking)) {
                 char wake = 'w';    // wwwwwwwwwwwwwwwwwwwwwwww
