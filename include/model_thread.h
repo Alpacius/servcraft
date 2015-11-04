@@ -24,7 +24,7 @@ struct scraft_model_mutex {
 };
 
 #define scraft_lock_invoke_(model_, member_, ...) \
-    _if(__VA_NARG__(__VA_ARGS__))( ((model_).member_.plain_ptr_(__VA_ARGS__)), ((model_).member_.closure_(__VA_ARGS__)) )
+    _if__(__VA_NARG__(__VA_ARGS__))( ((model_).member_.plain_ptr_(__VA_ARGS__)), ((model_).member_.closure_(__VA_ARGS__)) )
 
 #define scraft_rwlock_rdlock(model_, ...) scraft_lock_invoke_(model_, rdlock_, __VA_ARGS__)
 #define scraft_rwlock_wrlock(model_, ...) scraft_lock_invoke_(model_, wrlock_, __VA_ARGS__)
