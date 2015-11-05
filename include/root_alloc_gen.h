@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef     ROOT_ALLOC_PREFIX
 #error      "missing root allocator prefix"
 #endif

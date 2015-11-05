@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef     ROOT_MUTEX_PREFIX
 #error      "missing root mutex_model prefix"
 #endif
