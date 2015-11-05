@@ -31,6 +31,6 @@ struct scraft_model_mutex {
 #define scraft_rwlock_unlock(model_, ...) scraft_lock_invoke_(model_, unlock_, __VA_ARGS__)
 
 #define scraft_mutex_lock(model_, ...) scraft_lock_invoke_(model_, lock_, __VA_ARGS__)
-#define scraft_mutex_unlock(model_, ...) scraft_lock_invoke_(model_, lock_, __VA_ARGS__)
+#define scraft_mutex_unlock(model_, ...) scraft_lock_invoke_(model_, unlock_, __VA_ARGS__)
 
 #endif      // MODEL_THREAD_H_
