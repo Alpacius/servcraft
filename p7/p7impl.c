@@ -30,7 +30,7 @@ static uint8_t active_queue_at[256] = { [0] = 0, [255] = 1 };
 
 static
 struct p7_coro_cntx *p7_coro_cntx_new_(void (*entry)(void *), void *arg, size_t stack_size, struct p7_limbo *limbo) {
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     struct p7_coro_cntx *cntx = scraft_allocate(allocator, (sizeof(struct p7_coro_cntx) + sizeof(void *) * stack_size + STACK_RESERVED_SIZE));
     if (cntx != NULL) {
         cntx->stack_size = stack_size;
@@ -48,7 +48,7 @@ struct p7_coro_cntx *p7_coro_cntx_new_(void (*entry)(void *), void *arg, size_t 
 
 static
 void p7_coro_cntx_delete_(struct p7_coro_cntx *cntx) {
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     scraft_deallocate(allocator, cntx);
 }
 
@@ -57,7 +57,7 @@ struct p7_coro *p7_coro_new_(void (*entry)(void *), void *arg, size_t stack_size
     struct p7_coro *coro = NULL;
     struct p7_coro_cntx *cntx = p7_coro_cntx_new_(entry, arg, stack_size, limbo);
     if (cntx != NULL) {
-        __auto_type allocator = local_root_alloc_get_proxy();
+        __auto_type allocator = p7_root_alloc_get_proxy();
         coro = scraft_allocate(allocator, (sizeof(struct p7_coro)));
         if (coro != NULL) {
             (coro->carrier_id = carrier_id), (coro->cntx = cntx), (coro->following = NULL);
@@ -71,7 +71,7 @@ struct p7_coro *p7_coro_new_(void (*entry)(void *), void *arg, size_t stack_size
 static
 void p7_coro_delete_(struct p7_coro *coro) {
     p7_coro_cntx_delete_(coro->cntx);
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     scraft_deallocate(allocator, coro);
 }
 
@@ -119,7 +119,7 @@ struct p7_limbo *p7_limbo_new(void (*entry)(void *)) {
     struct p7_coro_cntx *cntx = p7_coro_cntx_new(entry, NULL, 1024, NULL);
     struct p7_limbo *limbo = NULL;
     if (cntx != NULL) {
-        __auto_type allocator = local_root_alloc_get_proxy();
+        __auto_type allocator = p7_root_alloc_get_proxy();
         limbo = scraft_allocate(allocator, sizeof(struct p7_limbo));
         if (limbo == NULL) {
             p7_coro_cntx_delete_(cntx);
@@ -132,7 +132,7 @@ struct p7_limbo *p7_limbo_new(void (*entry)(void *)) {
 
 static
 struct p7_carrier *p7_carrier_prepare(unsigned carrier_id, unsigned nevents, void (*limbo_entry)(void *), void (*entry)(void *), void *arg) {
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     struct p7_carrier *carrier = scraft_allocate(allocator, sizeof(struct p7_carrier));
     struct epoll_event *evqueue = scraft_allocate(allocator, sizeof(struct epoll_event) * nevents);
     struct p7_limbo *limbo = p7_limbo_new(limbo_entry);
@@ -188,7 +188,7 @@ void p7_carrier_atexit(struct p7_carrier *self) {
 
 static
 struct p7_coro_rq *p7_coro_rq_new_(void (*entry)(void *), void *arg, size_t stack_size) {
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     struct p7_coro_rq *rq = scraft_allocate(allocator, sizeof(struct p7_coro_rq));
     if (rq != NULL) {
         (rq->func_info.entry = entry), (rq->func_info.arg = arg);
@@ -200,7 +200,7 @@ struct p7_coro_rq *p7_coro_rq_new_(void (*entry)(void *), void *arg, size_t stac
 
 static
 void p7_coro_rq_delete_(struct p7_coro_rq *rq) {
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     scraft_deallocate(allocator, rq);
 }
 
@@ -237,7 +237,7 @@ void p7_coro_rq_delete(struct p7_coro_rq *rq) {
 
 static
 struct p7_waitk *p7_waitk_new_(void) {
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     struct p7_waitk *k = scraft_allocate(allocator, sizeof(struct p7_waitk));
     (k != NULL) && (k->from = self_view->carrier_id);
     return k;
@@ -245,7 +245,7 @@ struct p7_waitk *p7_waitk_new_(void) {
 
 static
 void p7_waitk_delete_(struct p7_waitk *k) {
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     scraft_deallocate(allocator, k);
 }
 
@@ -293,7 +293,7 @@ uint64_t get_timeval_by_diff(uint64_t dt) {
 
 static
 struct p7_timer_event *p7_timer_event_new_(uint64_t dt, unsigned from, struct p7_coro *coro, struct p7_cond_event *cond) {
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     struct p7_timer_event *ev = scraft_allocate(allocator, sizeof(struct p7_timer_event));
     if (ev != NULL)
         (ev->tval = get_timeval_by_diff(dt)), (ev->from = from), (ev->coro = coro), (ev->condref = cond);
@@ -304,7 +304,7 @@ static
 void p7_timer_event_del_(struct p7_timer_event *ev) {
     if (ev->hook.dtor != NULL)
         ev->hook.dtor(ev->hook.arg, ev->hook.func);
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     scraft_deallocate(allocator, ev);
 }
 
@@ -598,7 +598,7 @@ int p7_iowrap_(int fd, int rdwr) {
     ret = epoll_ctl(self_view->iomon_info.epfd, EPOLL_CTL_ADD, fd, &(k->event));
     if (ret == -1) {
         int errsv = errno;
-        __auto_type allocator = local_root_alloc_get_proxy();
+        __auto_type allocator = p7_root_alloc_get_proxy();
         scraft_deallocate(allocator, k);
         return -1;
     }
@@ -613,7 +613,7 @@ int p7_init(unsigned nthreads, void (*at_startup)(void *), void *arg) {
     if (nthreads < 1)
         nthreads = 1;
     ncarriers = nthreads;
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     carriers = scraft_allocate(allocator, sizeof(struct p7_carrier *) * ncarriers);
     int carrier_idx;
     carriers[0] = p7_carrier_prepare(0, 1024, limbo_loop, sched_loop_cntx_wraper, NULL);

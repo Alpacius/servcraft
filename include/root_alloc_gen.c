@@ -17,3 +17,5 @@ struct scraft_model_alloc * cat2_(ROOT_ALLOC_PREFIX, _root_alloc_get_allocator(v
 struct scraft_model_alloc * cat2_(ROOT_ALLOC_PREFIX, _root_alloc_ruin(void)) {
     return &local_root_allocator;
 }
+
+#undef      local_root_allocator

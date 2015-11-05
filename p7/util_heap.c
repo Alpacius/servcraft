@@ -7,7 +7,7 @@
 // note that we use entries[1] as the root
 
 struct p7_minheap *heap_create(compare_func_t cmp_func) {
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     struct p7_minheap *h = scraft_allocate(allocator, sizeof(struct p7_minheap));
     //struct p7_minheap *h = (struct p7_minheap *) malloc(sizeof(struct p7_minheap));
     if (h == NULL)
@@ -63,7 +63,7 @@ void heap_insert(void *e, struct p7_minheap *h) {
     void *tmp_entry;
     if (h->heap_curr >= h->heap_size) {
         __auto_type basesize = sizeof(void *) * h->heap_size;
-        __auto_type allocator = local_root_alloc_get_proxy();
+        __auto_type allocator = p7_root_alloc_get_proxy();
         void **tmp_entries = (void **) scraft_reallocate(allocator, h->heap_entries, basesize * 2);
         if (tmp_entries != NULL) {
             h->heap_entries = tmp_entries;

@@ -15,7 +15,7 @@ struct {
 } arena_info;
 
 int p7_spinlock_preinit(uint32_t n_reserved) {
-    __auto_type allocator = local_root_alloc_get_proxy();
+    __auto_type allocator = p7_root_alloc_get_proxy();
     int ret = -1;
     reserved = scraft_allocate(allocator, sizeof(struct p7_spinlock) * n_reserved);
     if (reserved != NULL) {
@@ -54,7 +54,7 @@ struct p7_spinlock *p7_spinlock_thunk_alloc(void) {
         arena_info.free_cached--;
         spin->lock = 0;
     } else {
-        __auto_type allocator = local_root_alloc_get_proxy();
+        __auto_type allocator = p7_root_alloc_get_proxy();
         ((spin = scraft_allocate(allocator, sizeof(struct p7_spinlock))) != NULL) && (spin->is_free = P7_SPINLOCK_TEMP);
     }
     return spin;
@@ -88,7 +88,7 @@ void p7_spinlock_destroy(struct p7_spinlock *spin) {
                     list_add_tail(&(spin->lctl), &(arena_info.cached));
                     spin->lock = 0;
                 } else {
-                    __auto_type allocator = local_root_alloc_get_proxy();
+                    __auto_type allocator = p7_root_alloc_get_proxy();
                     scraft_deallocate(allocator, spin);
                 }
                 break;
