@@ -116,11 +116,9 @@ void p7_spinlock_lock_0_1(struct p7_spinlock *spin) {
 
 __asm__(".symver p7_spinlock_lock_0_2,p7_spinlock_lock@@LIBP7_0.2");
 void p7_spinlock_lock_0_2(struct p7_spinlock *spin) {
-    uint32_t ret, spincount;
-    for (;;) {
+    uint32_t spincount;
+    while(__atomic_exchange_n(&(spin->lock), 1, __ATOMIC_SEQ_CST)) {
         spincount = 0;
-        if ((ret = __atomic_exchange_n(&(spin->lock), 1, __ATOMIC_SEQ_CST)) == 0)
-            break;
 #ifdef  P7_USE_INTEL_PAUSE
 #define cpu_relax   __asm__("pause")
 #else
