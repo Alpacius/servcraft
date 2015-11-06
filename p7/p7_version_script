@@ -13,6 +13,7 @@ LIBP7_0.1 {
 
 LIBP7_0.2 {
     global:
+        p7_spinlock_lock;
         p7_spinlock_init;
         p7_rwspinlock_init; p7_rwspinlock_rdlock; p7_rwspinlock_rdunlock; p7_rwspinlock_wrlock; p7_rwspinlock_wrunlock;
     local:

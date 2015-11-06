@@ -100,7 +100,8 @@ void p7_spinlock_destroy(struct p7_spinlock *spin) {
     }
 }
 
-void p7_spinlock_lock(struct p7_spinlock *spin) {
+__asm__(".symver p7_spinlock_lock_0_1,p7_spinlock_lock@LIBP7_0.1");
+void p7_spinlock_lock_0_1(struct p7_spinlock *spin) {
     uint32_t ret, spincount;
     for (;;) {
         spincount = 0;
@@ -109,6 +110,24 @@ void p7_spinlock_lock(struct p7_spinlock *spin) {
         } while (ret && (spin->spintime - spincount));
         if (ret == 0)
             break;
+        p7_coro_yield();
+    }
+}
+
+__asm__(".symver p7_spinlock_lock_0_2,p7_spinlock_lock@@LIBP7_0.2");
+void p7_spinlock_lock_0_2(struct p7_spinlock *spin) {
+    uint32_t ret, spincount;
+    for (;;) {
+        spincount = 0;
+        if ((ret = __atomic_exchange_n(&(spin->lock), 1, __ATOMIC_SEQ_CST)) == 0)
+            break;
+#ifdef  P7_USE_INTEL_PAUSE
+#define cpu_relax   __asm__("pause")
+#else
+#define cpu_relax
+#endif
+        while (spin->spintime - spincount++)
+            cpu_relax;
         p7_coro_yield();
     }
 }
