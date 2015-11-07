@@ -7,14 +7,20 @@ void p7_rwspinlock_init(struct p7_rwspinlock *rwspin, uint32_t spintime) {
     (rwspin->completion = 0), (rwspin->spintime = spintime);
 }
 
+#ifdef  P7_USE_INTEL_PAUSE
+#define cpu_relax   __asm__("pause")
+#else
+#define cpu_relax
+#endif
+
 void p7_rwspinlock_rdlock(struct p7_rwspinlock *rwspin) {
     uint32_t req_id = __atomic_fetch_add(&(rwspin->request), 1, __ATOMIC_RELEASE), spincount;
-    volatile int reqflg;
-    do {
+    while (__atomic_load_n(&(rwspin->completion), __ATOMIC_ACQUIRE) != req_id) {
         spincount = 0;
-        while ((reqflg = (__atomic_load_n(&(rwspin->completion), __ATOMIC_ACQUIRE) != req_id)) && (rwspin->spintime - spincount++));
-        if (reqflg) p7_coro_yield();
-    } while (reqflg);
+        while (rwspin->spintime - spincount++)
+            cpu_relax;
+        p7_coro_yield();
+    }
     __atomic_add_fetch(&(rwspin->n_readers), 1, __ATOMIC_RELEASE);
     rwspin->completion++;
 }
@@ -26,20 +32,23 @@ void p7_rwspinlock_rdunlock(struct p7_rwspinlock *rwspin) {
 
 void p7_rwspinlock_wrlock(struct p7_rwspinlock *rwspin) {
     uint32_t req_id = __atomic_fetch_add(&(rwspin->request), 1, __ATOMIC_RELEASE), spincount;
-    volatile int reqflg;
-    do {
+    while (__atomic_load_n(&(rwspin->completion), __ATOMIC_ACQUIRE) != req_id) {
         spincount = 0;
-        while ((reqflg = (__atomic_load_n(&(rwspin->completion), __ATOMIC_ACQUIRE) != req_id)) && (rwspin->spintime - spincount++));
-        if (reqflg) p7_coro_yield();
-    } while (reqflg);
-    do {
+        while (rwspin->spintime - spincount++)
+            cpu_relax;
+        p7_coro_yield();
+    }
+    while (__atomic_load_n(&(rwspin->n_readers), __ATOMIC_ACQUIRE) > 0) {
         spincount = 0;
-        while ((reqflg = (__atomic_load_n(&(rwspin->n_readers), __ATOMIC_ACQUIRE) > 0)) && (rwspin->spintime - spincount++));
-        if (reqflg) p7_coro_yield();
-    } while (reqflg);
+        while (rwspin->spintime - spincount++)
+            cpu_relax;
+        p7_coro_yield();
+    }
 }
 
 void p7_rwspinlock_wrunlock(struct p7_rwspinlock *rwspin) {
     rwspin->completion++;
     p7_coro_yield();
 }
+
+#undef cpu_relax
