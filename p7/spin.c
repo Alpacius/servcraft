@@ -128,6 +128,7 @@ void p7_spinlock_lock_0_2(struct p7_spinlock *spin) {
             cpu_relax;
         p7_coro_yield();
     }
+#undef cpu_relax
 }
 
 void p7_spinlock_unlock(struct p7_spinlock *spin) {
