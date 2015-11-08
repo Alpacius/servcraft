@@ -554,6 +554,7 @@ void p7_timer_clean_(struct p7_timer_event *ev) {
 
 void p7_coro_yield(void) {
     struct p7_carrier *self = self_view;
+    /*
     if (!list_is_empty(&(self->sched_info.coro_queue))) {
         list_ctl_t *last_coro = self->sched_info.coro_queue.next;
         list_del(last_coro);
@@ -566,6 +567,9 @@ void p7_coro_yield(void) {
         struct p7_coro *self_coro = self->sched_info.running;
         swapcontext(&(self_coro->cntx->uc), &(self->mgr_cntx.sched->uc));
     }
+    */
+    struct p7_coro *self_coro = self->sched_info.running;
+    swapcontext(&(self_coro->cntx->uc), &(self->mgr_cntx.sched->uc));
 }
 
 void p7_coro_create(void (*entry)(void *), void *arg, size_t stack_size) {
