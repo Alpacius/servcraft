@@ -1,6 +1,8 @@
 #include    "./rwspin.h"
 #include    "./p7intern.h"
 
+// Not recursive. However temporarily usable.
+
 void p7_rwspinlock_init(struct p7_rwspinlock *rwspin, uint32_t spintime) {
     __atomic_store_n(&(rwspin->request), 0, __ATOMIC_RELEASE);
     __atomic_store_n(&(rwspin->n_readers), 0, __ATOMIC_RELEASE);
