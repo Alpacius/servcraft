@@ -578,7 +578,7 @@ void p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size) {
     coro->following = last;
     list_del(&(last->lctl));
     list_add_tail(&(last->lctl), &(self_view->sched_info.blocking_queue));
-    list_add_head(&(coro->lctl), &(self_view->sched_info.coro_queue));
+    list_add_tail(&(coro->lctl), &(self_view->sched_info.coro_queue));
     self_view->sched_info.running = NULL;
     swapcontext(&(last->cntx->uc), &(self_view->mgr_cntx.sched->uc));
 }
