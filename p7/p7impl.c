@@ -444,6 +444,7 @@ void *sched_loop(void *arg) {
             }
         }
 
+        // XXX error: double buffering causes inconsistent
         list_ctl_t *p, *t, *h;
         /*
         pthread_spin_lock(&(self->sched_info.mutex));
