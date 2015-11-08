@@ -22,7 +22,7 @@ struct p7_minheap *heap_create(compare_func_t cmp_func) {
     h->heap_size = HEAP_INIT_SIZE;
     h->heap_curr = 0;
     h->heap_compare = cmp_func;
-    memset(h->heap_entries, sizeof(void *) * HEAP_INIT_SIZE, 0);
+    memset(h->heap_entries, 0, sizeof(void *) * HEAP_INIT_SIZE);
     return h;
 }
 
