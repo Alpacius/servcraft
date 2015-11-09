@@ -1,0 +1,9 @@
+LIBS1_0.1 {
+    global:
+        s1_dllib_create; s1_dllib_ruin; s1_dllib_load; s1_dllib_unload; s1_dllib_reload;
+        s1_dllib_symbol; s1_call_guard; s1_call_unguard; s1_dlsym_reload;
+        s1_root_alloc_get_allocator; s1_root_alloc_ruin;
+        s1_root_mutex_get_mutex_model; s1_root_mutex_ruin;
+    local:
+        *;
+};
