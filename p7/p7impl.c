@@ -391,8 +391,8 @@ void *sched_loop(void *arg) {
 
     while (1) {
         pthread_spin_lock(&(self->sched_info.mutex));
-        //int ep_timeout = (list_is_empty(&(self->sched_info.coro_queue)) && list_is_empty(&(self->sched_info.rq_queues[0])) && list_is_empty(&(self->sched_info.rq_queues[1]))) ? -1 : 0;
-        int ep_timeout = (list_is_empty(&(self->sched_info.coro_queue)) && list_is_empty(&(self->sched_info.rq_queues[0]))) ? -1 : 0;
+        int ep_timeout = (list_is_empty(&(self->sched_info.coro_queue)) && list_is_empty(&(self->sched_info.rq_queues[0])) && list_is_empty(&(self->sched_info.rq_queues[1]))) ? -1 : 0;
+        //int ep_timeout = (list_is_empty(&(self->sched_info.coro_queue)) && list_is_empty(&(self->sched_info.rq_queues[0]))) ? -1 : 0;
         pthread_spin_unlock(&(self->sched_info.mutex));
         struct p7_timer_event *ev_earliest = timer_peek_earliest(self->sched_info.timer_heap);
         uint64_t tval_before = get_timeval_current();
@@ -445,8 +445,7 @@ void *sched_loop(void *arg) {
             }
         }
 
-        // XXX error: double buffering causes inconsistent
-        list_ctl_t *p, *t, h;
+        list_ctl_t *p, *t, *h;
         /*
         pthread_spin_lock(&(self->sched_info.mutex));
         self->sched_info.active_rq_queue = &(self->sched_info.rq_queues[idx_active = 1 - idx_active]);
@@ -454,17 +453,9 @@ void *sched_loop(void *arg) {
         pthread_spin_unlock(&(self->sched_info.mutex));
         */
 
-        //h = &(self->sched_info.rq_queues[active_queue_at[__atomic_fetch_xor(&(self->sched_info.active_idx), (uint8_t) -1, __ATOMIC_SEQ_CST)]]);
-        init_list_head(&h);
-        pthread_spin_lock(&(self->sched_info.mutex));
-        list_foreach_remove(p, &(self->sched_info.rq_queues[0]), t) {
-            list_del(t);
-            list_add_tail(t, &h);
-        }
-        pthread_spin_unlock(&(self->sched_info.mutex));
-
-        if (!list_is_empty(&h)) {
-            list_foreach_remove(p, &h, t) {
+        h = &(self->sched_info.rq_queues[active_queue_at[__atomic_fetch_xor(&(self->sched_info.active_idx), (uint8_t) -1, __ATOMIC_SEQ_CST)]]);
+        if (!list_is_empty(h)) {
+            list_foreach_remove(p, h, t) {
                 list_del(t);
                 struct p7_coro_rq *rq = container_of(t, struct p7_coro_rq, lctl);
                 struct p7_coro *coro = p7_coro_new(rq->func_info.entry, rq->func_info.arg, rq->stack_info.stack_nunits, self->carrier_id, self->mgr_cntx.limbo);
@@ -505,16 +496,14 @@ void coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
     if (next_load->carrier_id != self_view->carrier_id) {
         struct p7_coro_rq *rq = p7_coro_rq_new(entry, arg, stack_size);
         if (rq != NULL) {
-            pthread_spin_lock(&(next_load->sched_info.mutex));
-            list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[0]));
-            pthread_spin_unlock(&(next_load->sched_info.mutex));
+            //pthread_spin_lock(&(next_load->sched_info.mutex));
+            //list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[0]));
+            //pthread_spin_unlock(&(next_load->sched_info.mutex));
             //uint8_t active_index = active_queue_at[__atomic_load_n(&(next_load->sched_info.active_idx), __ATOMIC_SEQ_CST)];
             // TODO not-so-heavy performace loss
-            /*
             pthread_spin_lock(&(next_load->sched_info.rq_queue_lock));
             list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[active_queue_at[__atomic_load_n(&(next_load->sched_info.active_idx), __ATOMIC_SEQ_CST)]]));
             pthread_spin_unlock(&(next_load->sched_info.rq_queue_lock));
-            */
             if (atom_fetch_int32(next_load->iomon_info.is_blocking)) {
                 char wake = 'w';    // wwwwwwwwwwwwwwwwwwwwwwww
                 write(next_load->iomon_info.condpipe[1], &wake, 1);
