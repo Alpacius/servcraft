@@ -175,7 +175,7 @@ struct s1_dlsym s1_call_unguard(struct s1_dlsym sym) {
                 scraft_deallocate(allocator, s1_dlwrap_ruin(container_of(t, struct s1_dlwrap, lctl)));
             }
         }
-        (sym.symbol = NULL), (sym.private_ref_ = __atomic_load_n(&(base->stable), __ATOMIC_ACQUIRE));       // XXX ready for reload symbol: call s1_dlsym_reload later
+        (sym.symbol = NULL), (sym.private_ref_ = __atomic_load_n(&(base->stable), __ATOMIC_ACQUIRE));       // XXX ready for reloading symbol: call s1_dlsym_reload later
     }
     return sym;
 }
