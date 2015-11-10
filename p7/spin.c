@@ -124,7 +124,7 @@ void p7_spinlock_lock_0_2(struct p7_spinlock *spin) {
 #else
 #define cpu_relax
 #endif
-        penalty && (p7_coro_yield(), (penalty = 1 - penalty));
+        (penalty && (p7_coro_yield(), penalty)), (penalty = 1 - penalty);
         while (spin->spintime - spincount++)
             cpu_relax;
     }

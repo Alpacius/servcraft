@@ -19,7 +19,7 @@ void p7_rwspinlock_rdlock(struct p7_rwspinlock *rwspin) {
     uint32_t req_id = __atomic_fetch_add(&(rwspin->request), 1, __ATOMIC_RELEASE), spincount, penalty = 0;
     while (__atomic_load_n(&(rwspin->completion), __ATOMIC_ACQUIRE) != req_id) {
         spincount = 0;
-        penalty && (p7_coro_yield(), (penalty = 1 - penalty));
+        (penalty && (p7_coro_yield(), penalty)), (penalty = 1 - penalty);
         while (rwspin->spintime - spincount++)
             cpu_relax;
     }
@@ -36,12 +36,12 @@ void p7_rwspinlock_wrlock(struct p7_rwspinlock *rwspin) {
     uint32_t req_id = __atomic_fetch_add(&(rwspin->request), 1, __ATOMIC_RELEASE), spincount, penalty = 0;
     while (__atomic_load_n(&(rwspin->completion), __ATOMIC_ACQUIRE) != req_id) {
         spincount = 0;
-        penalty && (p7_coro_yield(), (penalty = 1 - penalty));
+        (penalty && (p7_coro_yield(), penalty)), (penalty = 1 - penalty);
         while (rwspin->spintime - spincount++)
             cpu_relax;
     }
     while (__atomic_load_n(&(rwspin->n_readers), __ATOMIC_ACQUIRE) > 0) {
-        penalty && (p7_coro_yield(), (penalty = 1 - penalty));
+        (penalty && (p7_coro_yield(), penalty)), (penalty = 1 - penalty);
         spincount = 0;
         while (rwspin->spintime - spincount++)
             cpu_relax;
