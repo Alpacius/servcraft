@@ -130,6 +130,7 @@ void scraft_arena_tlinit(uint32_t cap) {
     init_list_head(&(arena_tl_pool.pool));
 }
 
+// XXX retval: ugly
 struct scraft_arena_response scraft_arena_delay_dtor(struct scraft_arena *arena, void *object, void (*dtor)(void *, void *), void *user_arg) {
     struct scraft_arena_dtor_chain *chain = arena->dtor_chain;
     struct scraft_arena_dtor_hook *target_hook = NULL;
