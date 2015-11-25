@@ -172,6 +172,23 @@ void scraft_rbt_delete(struct scraft_rbtree *tree, struct scraft_rbtree_node *no
     tmp->color = SCRAFT_RBT_BLACK;
 }
 
+struct scraft_rbtree_node *scraft_rbt_find(struct scraft_rbtree *tree, const void *key) {
+    struct scraft_rbtree_node *iter = tree->root;
+    while (iter != tree->sentinel) {
+        switch (tree->key_compare(key, iter->key_ref)) {
+            case 0:
+                return iter;
+            case -1:
+                iter = iter->left;
+                break;
+            case 1:
+                iter = iter->right;
+                break;
+        }
+    }
+    return NULL;
+}
+
 void scraft_rbt_init(struct scraft_rbtree *tree, int (*key_compare)(const void *, const void *)) {
     (tree->sentinel = tree->root = &sentinel_common), (tree->key_compare = key_compare);
 }
