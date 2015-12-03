@@ -439,8 +439,6 @@ void *sched_loop(void *arg) {
                     p7_waitk_delete(kwrap);
                 }
             } else {
-                // XXX just a stub. need dispatching for both remote creating requests & conditional locks.
-                //char sink[128];
                 struct p7_intern_msg msg;
                 void p7_intern_handle_wakeup(void) {
                     // XXX 'Tis empty
