@@ -440,8 +440,18 @@ void *sched_loop(void *arg) {
                 }
             } else {
                 // XXX just a stub. need dispatching for both remote creating requests & conditional locks.
-                char sink[128];
-                while (read(self->iomon_info.condpipe[0], &sink, 64) > 0);
+                //char sink[128];
+                struct p7_intern_msg msg;
+                void p7_intern_handle_wakeup(void) {
+                    // XXX 'Tis empty
+                }
+                void (*p7_intern_handlers[])(void) = {
+                    NULL,   // XXX reserved0
+                    &p7_intern_handle_wakeup,
+                };
+                while (read(self->iomon_info.condpipe[0], &msg, sizeof(msg)) > 0) {
+                    p7_intern_handlers[msg.type]();
+                }
             }
         }
 
@@ -505,8 +515,10 @@ void coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
             list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[active_queue_at[__atomic_load_n(&(next_load->sched_info.active_idx), __ATOMIC_SEQ_CST)]]));
             pthread_spin_unlock(&(next_load->sched_info.rq_queue_lock));
             if (atom_fetch_int32(next_load->iomon_info.is_blocking)) {
-                char wake = 'w';    // wwwwwwwwwwwwwwwwwwwwwwww
-                write(next_load->iomon_info.condpipe[1], &wake, 1);
+                //char wake = 'w';    // wwwwwwwwwwwwwwwwwwwwwwww
+                //write(next_load->iomon_info.condpipe[1], &wake, 1);
+                struct p7_intern_msg wakemsg = { .type = P7_INTERN_WAKEUP };
+                write(next_load->iomon_info.condpipe[1], &wakemsg, sizeof(wakemsg));
             }
         }
     } else {

@@ -120,6 +120,16 @@ struct p7_carrier {
     } startup;
 };
 
+struct p7_intern_msg {
+    uint32_t type;
+    uintptr_t immpack_uintptr[2];
+    uint64_t immpack_uint64[2];
+};
+
+#define     P7_INTERN_RESERVED0 0
+#define     P7_INTERN_WAKEUP    1
+#define     P7_INTERN_SENT      2
+
 #define     STACK_RESERVED_SIZE     (1024 * sizeof(void *))
 
 #define     P7_IOMODE_READ      1
