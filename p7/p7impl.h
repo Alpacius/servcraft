@@ -24,16 +24,21 @@ struct p7_coro_cntx {
 };
 
 struct p7_coro {
-    list_ctl_t lctl;
+    list_ctl_t lctl, mailbox;
     struct {
         void *arg;
         void (*entry)(void *);
     } func_info;
     unsigned carrier_id;
     unsigned timedout;
+    uint32_t status;
     struct p7_coro_cntx *cntx;
-    struct p7_coro *following;
+    struct p7_coro *following, *trapper;
 };
+
+#define     P7_CORO_STATUS_DYING       0
+#define     P7_CORO_STATUS_ALIVE       1
+#define     P7_CORO_STATUS_FLAG_RECV   2
 
 // XXX I see frag!
 struct p7_coro_rq {
@@ -89,6 +94,18 @@ struct p7_cond_event {
     struct p7_timer_event *timerref;
 };
 
+struct p7_double_queue {
+    list_ctl_t queue[2];
+    volatile uint8_t active_idx;
+};
+
+static inline
+void p7_double_queue_init(struct p7_double_queue *q) {
+    init_list_head(&(q->queue[0]));
+    init_list_head(&(q->queue[1]));
+    __atomic_store_n(&(q->active_idx), 0, __ATOMIC_SEQ_CST);
+}
+
 struct p7_carrier {
     pthread_t tid;
     unsigned carrier_id;
@@ -115,6 +132,11 @@ struct p7_carrier {
         list_ctl_t queue;
     } iomon_info;
     struct {
+        struct p7_double_queue *mailboxes;
+        uint32_t nmailboxes;
+        list_ctl_t localbox;
+    } icc_info;
+    struct {
         void (*at_startup)(void *);
         void *arg_startup;
     } startup;
@@ -124,6 +146,11 @@ struct p7_intern_msg {
     uint32_t type;
     uintptr_t immpack_uintptr[2];
     uint64_t immpack_uint64[2];
+};
+
+struct p7_msg {
+    list_ctl_t lctl;
+    void *dst;
 };
 
 #define     P7_INTERN_RESERVED0 0

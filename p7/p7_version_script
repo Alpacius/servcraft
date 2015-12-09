@@ -19,3 +19,12 @@ LIBP7_0.2 {
     local:
         *;
 };
+
+LIBP7_0.3 {
+    global:
+        p7_send_by_entity; p7_send_by_name;
+        p7_recv;
+        p7_coro_register_name; p7_coro_discard_name;
+    local:
+        *;
+};

@@ -1,6 +1,7 @@
 #include    "./p7impl.h"
 #include    "./p7_root_alloc.h"
 #include    "../include/model_alloc.h"
+#include    "./p7_namespace.h"
 
 // XXX WTF I've written. Get rid of these pieces of CRAP whenever possible.
 // XXX UPDATE. These are still crap.
@@ -23,7 +24,7 @@
 static int p7_timer_compare(const void *ev1, const void *ev2);
 
 static struct p7_carrier **carriers = NULL;
-static unsigned next_carrier = 0, ncarriers = 1;
+static volatile uint32_t next_carrier = 0, ncarriers = 1;
 static __thread struct p7_carrier *self_view = NULL;
 
 static uint8_t active_queue_at[256] = { [0] = 0, [255] = 1 };
@@ -63,6 +64,9 @@ struct p7_coro *p7_coro_new_(void (*entry)(void *), void *arg, size_t stack_size
             (coro->carrier_id = carrier_id), (coro->cntx = cntx), (coro->following = NULL);
             (coro->func_info.entry = entry), (coro->func_info.arg = arg);
             coro->timedout = 0;
+            coro->status = P7_CORO_STATUS_ALIVE;
+            coro->trapper = NULL;
+            init_list_head(&(coro->mailbox));
         }
     }
     return coro;
@@ -97,6 +101,8 @@ struct p7_coro *p7_coro_new(void (*entry)(void *), void *arg, size_t stack_size,
             p7_coro_cntx_delete_(coro->cntx);
             coro->cntx = p7_coro_cntx_new(entry, arg, stack_size, limbo);
         }
+        coro->status = P7_CORO_STATUS_ALIVE;
+        coro->trapper = NULL;
         return coro;
     } else {
         return p7_coro_new_(entry, arg, stack_size, carrier_id, limbo);
@@ -105,6 +111,9 @@ struct p7_coro *p7_coro_new(void (*entry)(void *), void *arg, size_t stack_size,
 
 static
 void p7_coro_delete(struct p7_coro *coro) {
+    coro->status = P7_CORO_STATUS_DYING;
+    coro->trapper = NULL;
+    // TODO name cancellation
     if (self_view->sched_info.coro_pool_size < self_view->sched_info.coro_pool_cap) {
         self_view->sched_info.coro_pool_size++;
         coro->following = NULL;
@@ -169,6 +178,12 @@ struct p7_carrier *p7_carrier_prepare(unsigned carrier_id, unsigned nevents, voi
         pipe(carrier->iomon_info.condpipe);
         int fdflags = fcntl(carrier->iomon_info.condpipe[0], F_GETFL, 0);
         fcntl(carrier->iomon_info.condpipe[0], F_SETFL, fdflags|O_NONBLOCK);
+        carrier->icc_info.nmailboxes = ncarriers;
+        uint32_t idx;
+        carrier->icc_info.mailboxes = scraft_allocate(allocator, sizeof(struct p7_double_queue) * carrier->icc_info.nmailboxes);
+        for (idx = 0; idx < carrier->icc_info.nmailboxes; idx++)
+            p7_double_queue_init(&(carrier->icc_info.mailboxes[idx]));
+        init_list_head(&(carrier->icc_info.localbox));
     } else {
 #define free_safe(_p_) ({ do { if ((_p_) != NULL) local_free(_p_); } while (0); 0; })
         free_safe(carrier), free_safe(evqueue), free_safe(limbo);
@@ -354,6 +369,8 @@ void limbo_loop(void *unused) {
     struct p7_carrier *self_carrier = self_view;
     while (1) {
         struct p7_coro *current = self_carrier->sched_info.running;
+        __atomic_store_n(&(current->status), P7_CORO_STATUS_DYING, __ATOMIC_SEQ_CST);
+        // TODO message forwarding to the trapper
         list_del(&(current->lctl));
         if (current->following != NULL) {
             list_del(&(current->following->lctl));
@@ -366,6 +383,21 @@ void limbo_loop(void *unused) {
 }
 
 static volatile uint32_t sched_loop_sync = 0;
+
+static
+void p7_intern_handle_wakeup(struct p7_intern_msg *message) {
+    // XXX 'Tis empty
+}
+
+static
+void p7_intern_handle_sent(struct p7_intern_msg *message) {
+    struct p7_coro *coro = (struct p7_coro *) message->immpack_uintptr[0];
+    if (coro->status & P7_CORO_STATUS_FLAG_RECV) {
+        list_del(&(coro->lctl));
+        list_add_head(&(coro->lctl), &(self_view->sched_info.coro_queue));
+        coro->status &= ~P7_CORO_STATUS_FLAG_RECV;
+    }
+}
 
 static
 void *sched_loop(void *arg) {
@@ -440,15 +472,14 @@ void *sched_loop(void *arg) {
                 }
             } else {
                 struct p7_intern_msg msg;
-                void p7_intern_handle_wakeup(void) {
-                    // XXX 'Tis empty
-                }
-                void (*p7_intern_handlers[])(void) = {
+                void (*p7_intern_handlers[])(struct p7_intern_msg *) = {
                     NULL,   // XXX reserved0
-                    &p7_intern_handle_wakeup,
+                    p7_intern_handle_wakeup,
+                    p7_intern_handle_sent,
                 };
+                // XXX stub: vectorized io may be better
                 while (read(self->iomon_info.condpipe[0], &msg, sizeof(msg)) > 0) {
-                    p7_intern_handlers[msg.type]();
+                    p7_intern_handlers[msg.type](&msg);
                 }
             }
         }
@@ -471,6 +502,23 @@ void *sched_loop(void *arg) {
                 p7_coro_rq_delete(rq);
             }
         }
+
+        void mailbox_dispatch(list_ctl_t *box) {
+            list_ctl_t *p, *t;
+            list_foreach_remove(p, box, t) {
+                list_del(t);
+                struct p7_msg *msg = container_of(t, struct p7_msg, lctl);
+                struct p7_coro *dst = msg->dst;
+                list_add_tail(&(msg->lctl), &(dst->mailbox));
+            }
+        }
+        uint32_t idx_mailbox;
+        for (idx_mailbox = 0; idx_mailbox < self->icc_info.nmailboxes; idx_mailbox++) {
+            uint8_t debug_idx;
+            list_ctl_t *target_mailbox = &(self->icc_info.mailboxes[idx_mailbox].queue[debug_idx = active_queue_at[__atomic_fetch_xor(&(self->icc_info.mailboxes[idx_mailbox].active_idx), (uint8_t) -1, __ATOMIC_SEQ_CST)]]);
+            mailbox_dispatch(target_mailbox);
+        }
+        mailbox_dispatch(&(self->icc_info.localbox));
 
         // into the fight we leap
         // sched_info.running is only a "view"
@@ -497,10 +545,13 @@ void sched_loop_cntx_wraper(void *unused_arg) {
     sched_loop(carriers[0]);
 }
 
+void p7_coro_yield(void);
+
 static
 void coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
-    atom_add_uint32(next_carrier);
-    struct p7_carrier *next_load = carriers[next_carrier % ncarriers];
+    //atom_add_uint32(next_carrier);
+    uint32_t next_carrier_id = __atomic_fetch_add(&next_carrier, 1, __ATOMIC_SEQ_CST);
+    struct p7_carrier *next_load = carriers[next_carrier_id % ncarriers];
     if (next_load->carrier_id != self_view->carrier_id) {
         struct p7_coro_rq *rq = p7_coro_rq_new(entry, arg, stack_size);
         if (rq != NULL) {
@@ -516,7 +567,15 @@ void coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
                 //char wake = 'w';    // wwwwwwwwwwwwwwwwwwwwwwww
                 //write(next_load->iomon_info.condpipe[1], &wake, 1);
                 struct p7_intern_msg wakemsg = { .type = P7_INTERN_WAKEUP };
-                write(next_load->iomon_info.condpipe[1], &wakemsg, sizeof(wakemsg));
+#define     P7_SEND_TIMES    2
+                uint32_t nsendtimes = 0;
+                while (write(next_load->iomon_info.condpipe[1], &wakemsg, sizeof(wakemsg)) == -1) {
+                    if (++nsendtimes == P7_SEND_TIMES) {
+                        nsendtimes = 0;
+                        p7_coro_yield();
+                    }
+                }
+#undef      P7_SEND_TIMES
             }
         }
     } else {
@@ -596,6 +655,63 @@ void p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size) {
     swapcontext(&(last->cntx->uc), &(self_view->mgr_cntx.sched->uc));
 }
 
+// XXX message sending and coro resched are independent in the scheduler
+void p7_send_by_entity(void *dst, struct p7_msg *msg) {
+    struct p7_coro *target = dst;
+    struct p7_carrier *dst_carrier;
+    msg->dst = dst;
+    if (target->status & P7_CORO_STATUS_ALIVE == 0)
+        return;
+    if (target->carrier_id == self_view->carrier_id) {
+        list_add_tail(&(msg->lctl), &(self_view->icc_info.localbox));
+        dst_carrier = self_view;
+    } else {
+        struct p7_carrier *target_carrier = dst_carrier = carriers[target->carrier_id];
+        list_ctl_t *q = &(target_carrier->icc_info.mailboxes[self_view->carrier_id].queue[active_queue_at[__atomic_load_n(&(target_carrier->icc_info.mailboxes[self_view->carrier_id].active_idx), __ATOMIC_SEQ_CST)]]);
+        list_add_tail(&(msg->lctl), q);
+    }
+    struct p7_intern_msg msgbuf = { .type = P7_INTERN_SENT };
+    msgbuf.immpack_uintptr[0] = (uintptr_t) target;
+#define P7_SEND_TIMES 4
+    uint32_t nsendtimes = 0;
+    while (write(dst_carrier->iomon_info.condpipe[1], &msgbuf, sizeof(msgbuf)) == -1) {
+        if (++nsendtimes == P7_SEND_TIMES) {
+            nsendtimes = 0;
+            p7_coro_yield();
+        }
+    }
+#undef  P7_SEND_TIMES
+}
+
+struct p7_msg *p7_recv(void) {
+    list_ctl_t *ret;
+    struct p7_coro *self = self_view->sched_info.running;
+    if (list_is_empty(&(self->mailbox))) {
+        self->status |= P7_CORO_STATUS_FLAG_RECV;
+        list_del(&(self->lctl));
+        list_add_tail(&(self->lctl), &(self_view->sched_info.blocking_queue));
+        self_view->sched_info.running = NULL;
+        swapcontext(&(self->cntx->uc), &(self_view->mgr_cntx.sched->uc));
+    } 
+    ret = self->mailbox.next;
+    list_del(ret);
+    return container_of(ret, struct p7_msg, lctl);
+}
+
+void p7_send_by_name(const char *name, struct p7_msg *msg) {
+    struct p7_coro *dst = p7_namespace_find(name);
+    if (dst != NULL)
+        p7_send_by_entity(dst, msg);
+}
+
+void *p7_coro_register_name(const char *name) {
+    return p7_name_register(self_view->sched_info.running, name);
+}
+
+void p7_coro_discard_name(void *name_handle) {
+    p7_name_discard(name_handle);
+}
+
 int p7_iowrap_(int fd, int rdwr) {
     struct p7_waitk *k = p7_waitk_new();
     if (k == NULL)
@@ -626,6 +742,9 @@ int p7_init(unsigned nthreads, void (*at_startup)(void *), void *arg) {
     if (nthreads < 1)
         nthreads = 1;
     ncarriers = nthreads;
+#define P7_NAMESPACE_SIZE   512
+    p7_namespace_init(P7_NAMESPACE_SIZE);
+#undef  P7_NAMESPACE_SIZE
     __auto_type allocator = p7_root_alloc_get_proxy();
     carriers = scraft_allocate(allocator, sizeof(struct p7_carrier *) * ncarriers);
     int carrier_idx;
