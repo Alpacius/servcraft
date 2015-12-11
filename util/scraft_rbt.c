@@ -94,10 +94,12 @@ struct scraft_rbtree_node *scraft_rbtree_getmax(struct scraft_rbtree_node *node,
 }
 
 struct scraft_rbtree_node *scraft_rbtree_min(struct scraft_rbtree *tree) {
+    if (tree->root == tree->sentinel) return tree->root;
     return scraft_rbtree_getmin(tree->root, tree->sentinel);
 }
 
 struct scraft_rbtree_node *scraft_rbtree_max(struct scraft_rbtree *tree) {
+    if (tree->root == tree->sentinel) return tree->root;
     return scraft_rbtree_getmax(tree->root, tree->sentinel);
 }
 
