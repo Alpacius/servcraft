@@ -17,7 +17,7 @@ struct scraft_rbtree_node {
 };
 
 struct scraft_rbtree {
-    struct scraft_rbtree_node *root, *sentinel;
+    struct scraft_rbtree_node *root, *sentinel, sentinel_;
     int (*key_compare)(const void *, const void *);
 };
 

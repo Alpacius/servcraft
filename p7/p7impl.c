@@ -463,10 +463,12 @@ void *sched_loop(void *arg) {
         self->startup.at_startup(self->startup.arg_startup);
 
     while (1) {
-        pthread_spin_lock(&(self->sched_info.mutex));
+        pthread_spin_lock(&(self->sched_info.rq_queue_lock));
+        //pthread_spin_lock(&(self->sched_info.mutex));
         int ep_timeout = (list_is_empty(&(self->sched_info.coro_queue)) && list_is_empty(&(self->sched_info.rq_queues[0])) && list_is_empty(&(self->sched_info.rq_queues[1]))) ? -1 : 0;
         //int ep_timeout = (list_is_empty(&(self->sched_info.coro_queue)) && list_is_empty(&(self->sched_info.rq_queues[0]))) ? -1 : 0;
-        pthread_spin_unlock(&(self->sched_info.mutex));
+        pthread_spin_unlock(&(self->sched_info.rq_queue_lock));
+        //pthread_spin_unlock(&(self->sched_info.mutex));
         struct p7_timer_event *ev_earliest = timer_peek_earliest(&(self->sched_info.timer_queue));
         uint64_t tval_before = get_timeval_current();
         if (ev_earliest != NULL) {
@@ -484,7 +486,9 @@ void *sched_loop(void *arg) {
             if (ev_timer_itr->tval > tval_after)
                 break;
             else {
-                struct p7_timer_event *ev_timer_expired = timer_extract_earliest(&(self->sched_info.timer_queue));
+                //struct p7_timer_event *ev_timer_expired = timer_extract_earliest(&(self->sched_info.timer_queue));
+                struct p7_timer_event *ev_timer_expired = ev_timer_itr;
+                scraft_rbt_delete(&(self->sched_info.timer_queue), &(ev_timer_expired->rbtctl));
                 if (ev_timer_expired->hook.func != NULL)
                     ev_timer_expired->hook.func(ev_timer_expired->hook.arg);
                 if (ev_timer_expired->coro != NULL) {

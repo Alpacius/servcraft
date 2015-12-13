@@ -3,11 +3,11 @@
 
 static struct scraft_rbtree_node sentinel_common = { .color = SCRAFT_RBT_BLACK, .key_ref = NULL, .left = NULL, .right = NULL, .parent = NULL };
 
-static inline
+static 
 void rbt_bst_insert(struct scraft_rbtree *tree, struct scraft_rbtree_node *node) {
     struct scraft_rbtree_node **target = NULL, *pos = tree->root;
     do {
-        if (*(target = (tree->key_compare(node->key_ref, pos->key_ref) < 0) ? &(pos->left) : &(pos->right)) != tree->sentinel)
+        if (*(target = (tree->key_compare(node->key_ref, pos->key_ref) <= 0) ? &(pos->left) : &(pos->right)) != tree->sentinel)
             pos = *target;
     } while (*target != tree->sentinel);
     (*target = node), (node->parent = pos), (node->left = node->right = tree->sentinel), (node->color = SCRAFT_RBT_RED);
@@ -129,6 +129,7 @@ void scraft_rbt_delete(struct scraft_rbtree *tree, struct scraft_rbtree_node *no
         ((subst->left != tree->sentinel) && (subst->left->parent = subst)), ((subst->right != tree->sentinel) && (subst->right->parent = subst));
     }
     if (subst_color == SCRAFT_RBT_RED) return;
+    node->left = node->right = NULL;
     struct scraft_rbtree_node *fix_target = NULL;
     while ((tmp != *root) && (tmp->color == SCRAFT_RBT_BLACK)) {
         if (tmp == tmp->parent->left) {
@@ -192,6 +193,7 @@ struct scraft_rbtree_node *scraft_rbt_find(struct scraft_rbtree *tree, const voi
 }
 
 void scraft_rbt_init(struct scraft_rbtree *tree, int (*key_compare)(const void *, const void *)) {
-    (tree->sentinel = tree->root = &sentinel_common), (tree->key_compare = key_compare);
+    tree->sentinel_.color = SCRAFT_RBT_BLACK;
+    (tree->sentinel = tree->root = &(tree->sentinel_)), (tree->key_compare = key_compare);
 }
 
