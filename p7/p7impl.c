@@ -168,7 +168,6 @@ struct p7_carrier *p7_carrier_prepare(unsigned carrier_id, unsigned nevents, voi
         pthread_spin_init(&(carrier->sched_info.rq_pool_lock), PTHREAD_PROCESS_PRIVATE);
         pthread_spin_init(&(carrier->sched_info.waitk_pool_lock), PTHREAD_PROCESS_PRIVATE);
         pthread_spin_init(&(carrier->sched_info.rq_queue_lock), PTHREAD_PROCESS_PRIVATE);
-        //carrier->sched_info.timer_heap = heap_create(p7_timer_compare);
         scraft_rbt_init(&(carrier->sched_info.timer_queue), p7_timer_compare);
         (carrier->mgr_cntx.limbo = limbo), (carrier->mgr_cntx.sched = p7_coro_cntx_new(entry, arg, 1024 * 2, NULL)), 
         carrier->iomon_info.maxevents = nevents;
@@ -339,55 +338,21 @@ void p7_timer_event_hook(struct p7_timer_event *ev, void (*func)(void *), void *
     (ev->hook.arg = arg), (ev->hook.func = func), (ev->hook.dtor = dtor);
 }
 
-/*
-static
-int p7_timer_compare(const void *ev1, const void *ev2) {
-    const struct p7_timer_event *timers[2] = { (const struct p7_timer_event *) ev1, (const struct p7_timer_event *) ev2 };
-    return (timers[0]->tval == timers[1]->tval) ? 0 : ((timers[0]->tval < timers[1]->tval) ? -1 : 1);
-}
-*/
-
 static
 int p7_timer_compare(const void *lhs_, const void *rhs_) {
     uint64_t lhs = *((uint64_t *) lhs_), rhs = *((uint64_t *) rhs_);
     return (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
 }
 
-/*
-static
-void timer_add_event(struct p7_timer_event *ev, struct p7_minheap *heap) {
-    heap_insert(ev, heap);
-}
-*/
-
 static
 void timer_add_event(struct p7_timer_event *ev, struct scraft_rbtree *queue) {
     scraft_rbt_insert(queue, &(ev->rbtctl));
 }
 
-/*
-static
-void timer_remove_event(struct p7_timer_event *ev, struct p7_minheap *heap) {
-    heap_delete(ev, heap);
-}
-*/
-
 static
 void timer_remove_event(struct p7_timer_event *ev, struct scraft_rbtree *queue) {
     scraft_rbt_delete(queue, &(ev->rbtctl));
 }
-
-/*
-static
-struct p7_timer_event *timer_peek_earliest(struct p7_minheap *heap) {
-    return (struct p7_timer_event *) heap_peek_min(heap);
-}
-
-static
-struct p7_timer_event *timer_extract_earliest(struct p7_minheap *heap) {
-    return (struct p7_timer_event *) heap_extract_min(heap);
-}
-*/
 
 static
 struct p7_timer_event *timer_peek_earliest(struct scraft_rbtree *queue) {
@@ -464,11 +429,8 @@ void *sched_loop(void *arg) {
 
     while (1) {
         pthread_spin_lock(&(self->sched_info.rq_queue_lock));
-        //pthread_spin_lock(&(self->sched_info.mutex));
         int ep_timeout = (list_is_empty(&(self->sched_info.coro_queue)) && list_is_empty(&(self->sched_info.rq_queues[0])) && list_is_empty(&(self->sched_info.rq_queues[1]))) ? -1 : 0;
-        //int ep_timeout = (list_is_empty(&(self->sched_info.coro_queue)) && list_is_empty(&(self->sched_info.rq_queues[0]))) ? -1 : 0;
         pthread_spin_unlock(&(self->sched_info.rq_queue_lock));
-        //pthread_spin_unlock(&(self->sched_info.mutex));
         struct p7_timer_event *ev_earliest = timer_peek_earliest(&(self->sched_info.timer_queue));
         uint64_t tval_before = get_timeval_current();
         if (ev_earliest != NULL) {
@@ -486,7 +448,6 @@ void *sched_loop(void *arg) {
             if (ev_timer_itr->tval > tval_after)
                 break;
             else {
-                //struct p7_timer_event *ev_timer_expired = timer_extract_earliest(&(self->sched_info.timer_queue));
                 struct p7_timer_event *ev_timer_expired = ev_timer_itr;
                 scraft_rbt_delete(&(self->sched_info.timer_queue), &(ev_timer_expired->rbtctl));
                 if (ev_timer_expired->hook.func != NULL)
@@ -530,12 +491,6 @@ void *sched_loop(void *arg) {
         }
 
         list_ctl_t *p, *t, *h;
-        /*
-        pthread_spin_lock(&(self->sched_info.mutex));
-        self->sched_info.active_rq_queue = &(self->sched_info.rq_queues[idx_active = 1 - idx_active]);
-        self->sched_info.local_rq_queue = &(self->sched_info.rq_queues[1 - idx_active]);
-        pthread_spin_unlock(&(self->sched_info.mutex));
-        */
 
         h = &(self->sched_info.rq_queues[active_queue_at[__atomic_fetch_xor(&(self->sched_info.active_idx), (uint8_t) -1, __ATOMIC_SEQ_CST)]]);
         if (!list_is_empty(h)) {
@@ -600,17 +555,11 @@ void coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
     if (next_load->carrier_id != self_view->carrier_id) {
         struct p7_coro_rq *rq = p7_coro_rq_new(entry, arg, stack_size);
         if (rq != NULL) {
-            //pthread_spin_lock(&(next_load->sched_info.mutex));
-            //list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[0]));
-            //pthread_spin_unlock(&(next_load->sched_info.mutex));
-            //uint8_t active_index = active_queue_at[__atomic_load_n(&(next_load->sched_info.active_idx), __ATOMIC_SEQ_CST)];
             // TODO not-so-heavy performace loss
             pthread_spin_lock(&(next_load->sched_info.rq_queue_lock));
             list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[active_queue_at[__atomic_load_n(&(next_load->sched_info.active_idx), __ATOMIC_SEQ_CST)]]));
             pthread_spin_unlock(&(next_load->sched_info.rq_queue_lock));
             if (atom_fetch_int32(next_load->iomon_info.is_blocking)) {
-                //char wake = 'w';    // wwwwwwwwwwwwwwwwwwwwwwww
-                //write(next_load->iomon_info.condpipe[1], &wake, 1);
                 struct p7_intern_msg wakemsg = { .type = P7_INTERN_WAKEUP };
 #define     P7_SEND_TIMES    2
                 uint32_t nsendtimes = 0;
@@ -667,20 +616,6 @@ void p7_timer_clean_(struct p7_timer_event *ev) {
 
 void p7_coro_yield(void) {
     struct p7_carrier *self = self_view;
-    /*
-    if (!list_is_empty(&(self->sched_info.coro_queue))) {
-        list_ctl_t *last_coro = self->sched_info.coro_queue.next;
-        list_del(last_coro);
-        list_add_tail(last_coro, &(self->sched_info.coro_queue));
-        list_ctl_t *next_coro = self->sched_info.coro_queue.next;
-        self->sched_info.running = container_of(next_coro, struct p7_coro, lctl);
-        swapcontext(&(container_of(last_coro, struct p7_coro, lctl)->cntx->uc), &(container_of(next_coro, struct p7_coro, lctl)->cntx->uc));
-    } else {
-        // XXX slow but safe
-        struct p7_coro *self_coro = self->sched_info.running;
-        swapcontext(&(self_coro->cntx->uc), &(self->mgr_cntx.sched->uc));
-    }
-    */
     struct p7_coro *self_coro = self->sched_info.running;
     swapcontext(&(self_coro->cntx->uc), &(self->mgr_cntx.sched->uc));
 }
