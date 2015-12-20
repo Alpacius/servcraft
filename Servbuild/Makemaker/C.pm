@@ -75,10 +75,10 @@ sub generate_makefile {
     my $clean_command = ".PHONY: clean\n\nclean:\n\trm $object_list $assignments_overwritten{TARGET}\n\n";
     $result_makefile .= $clean_command;
 
-        my $filehandle_makefile;
-        open($filehandle_makefile, '>', 'makefile') or die "build.pl: cannot open makefile: $!";
-        print $filehandle_makefile $result_makefile;
-        close $filehandle_makefile;
+    my $filehandle_makefile;
+    open($filehandle_makefile, '>', 'makefile') or die "build.pl: cannot open makefile: $!";
+    print $filehandle_makefile $result_makefile;
+    close $filehandle_makefile;
 }
 
 1;
