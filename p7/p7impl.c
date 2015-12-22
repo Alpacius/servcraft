@@ -480,7 +480,6 @@ void *sched_loop(void *arg) {
                     p7_waitk_delete(kwrap);
                 }
             } else {
-                struct p7_intern_msg msg;
                 void (*p7_intern_handlers[])(struct p7_intern_msg *) = {
                     NULL,   // XXX reserved0
                     p7_intern_handle_wakeup,
