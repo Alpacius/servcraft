@@ -11,6 +11,8 @@
 #include    <ucontext.h>
 #include    <time.h>
 #include    <sys/epoll.h>
+#include    <sys/types.h>
+#include    <sys/uio.h>
 #include    "../include/util_list.h"
 #include    "../util/scraft_rbt_ifce.h"
 #include    "util_heap.h"

@@ -419,6 +419,9 @@ void *sched_loop(void *arg) {
     epoll_ctl(self->iomon_info.epfd, EPOLL_CTL_ADD, self->iomon_info.condpipe[0], &local_cond_ev);
 
     int idx_active = 0;
+#define     N_READ_VECTOR_MIN       4
+#define     N_READ_VECTOR_MAX       32
+    uint32_t n_read_vector = N_READ_VECTOR_MIN;
 
     // XXX sync
     atom_add_uint32(sched_loop_sync);
@@ -483,10 +486,24 @@ void *sched_loop(void *arg) {
                     p7_intern_handle_wakeup,
                     p7_intern_handle_sent,
                 };
-                // XXX stub: vectorized io may be better
-                while (read(self->iomon_info.condpipe[0], &msg, sizeof(msg)) > 0) {
-                    p7_intern_handlers[msg.type](&msg);
+                uint32_t intern_handle_message(uint32_t vector_size) {
+                    struct p7_intern_msg vector_message[vector_size];
+                    struct iovec vector_io[vector_size];
+                    uint32_t n_reading = 0, idx_vector;
+                    for (idx_vector = 0; idx_vector < vector_size; idx_vector++)
+                        (vector_io[idx_vector].iov_base = &(vector_message[idx_vector])), (vector_io[idx_vector].iov_len = sizeof(struct p7_intern_msg));
+                    ssize_t size_read;
+                    while ((size_read = readv(self->iomon_info.condpipe[0], vector_io, vector_size)) > 0) {
+                        n_reading++;
+                        uint32_t n_messages = size_read / sizeof(struct p7_intern_msg);     // XXX intended to be atomic
+                        uint32_t idx;
+                        for (idx = 0; idx < n_messages; idx++)
+                            p7_intern_handlers[vector_message[idx].type](&(vector_message[idx]));
+                    }
+                    return n_reading;
                 }
+                uint32_t n_passes = intern_handle_message(n_read_vector);
+                (n_read_vector < N_READ_VECTOR_MAX) && ((n_passes > 1) && (n_read_vector *= 2));
             }
         }
 
@@ -537,6 +554,9 @@ void *sched_loop(void *arg) {
 
     p7_carrier_atexit(self);
     return NULL;
+
+#undef      N_READ_VECTOR_MIN
+#undef      N_READ_VECTOR_MAX
 }
 
 // NOTE this wrapper is used for the main thread, which needs a scheduler but holds no independent pthread
