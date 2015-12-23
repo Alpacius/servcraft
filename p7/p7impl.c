@@ -541,7 +541,7 @@ void *sched_loop(void *arg) {
         // XXX if we come back from limbo or iowrap, just pick the next coro
         if (!list_is_empty(&(self->sched_info.coro_queue))) {
             if (self->sched_info.running != NULL) {
-                list_ctl_t *last_coro = self->sched_info.coro_queue.next;
+                list_ctl_t *last_coro = &(self->sched_info.running->lctl); //self->sched_info.coro_queue.next;
                 list_del(last_coro);
                 list_add_tail(last_coro, &(self->sched_info.coro_queue));
             }
