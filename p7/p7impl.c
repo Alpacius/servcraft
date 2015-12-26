@@ -399,8 +399,11 @@ static
 void p7_intern_handle_sent(struct p7_intern_msg *message) {
     struct p7_coro *coro = (struct p7_coro *) message->immpack_uintptr[0];
     if (coro->status & P7_CORO_STATUS_FLAG_RECV) {
-        list_del(&(coro->lctl));
-        list_add_head(&(coro->lctl), &(self_view->sched_info.coro_queue));
+        if (coro->timedout == 0) {
+            list_del(&(coro->lctl));
+            list_add_head(&(coro->lctl), &(self_view->sched_info.coro_queue));
+        } else
+            coro->timedout = 1;
         coro->status &= ~P7_CORO_STATUS_FLAG_RECV;
     }
 }
@@ -692,9 +695,12 @@ struct p7_msg *p7_recv(void) {
         self_view->sched_info.running = NULL;
         swapcontext(&(self->cntx->uc), &(self_view->mgr_cntx.sched->uc));
     } 
-    ret = self->mailbox.next;
-    list_del(ret);
-    return container_of(ret, struct p7_msg, lctl);
+    if (!list_is_empty(&(self->mailbox))) {
+        ret = self->mailbox.next;
+        list_del(ret);
+        return container_of(ret, struct p7_msg, lctl);
+    } else 
+        return NULL;
 }
 
 void p7_send_by_name(const char *name, struct p7_msg *msg) {

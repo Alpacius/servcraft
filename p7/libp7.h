@@ -54,5 +54,15 @@ void p7_send_by_name(const char *name, struct p7_msg *msg);
 void *p7_coro_register_name(const char *name);
 void p7_coro_discard_name(void *name_handle);
 
+#define p7_recv_timed(dt_) \
+({ \
+    __auto_type ev_ = p7_timed_event_assoc(dt_, NULL, NULL, NULL); \
+    struct p7_msg *msg_ = p7_recv(); \
+    if (p7_timedout_()) \
+        p7_timeout_reset(); \
+    else \
+        p7_timer_clean_(ev_); \
+    msg_; \
+})
 
 #endif      // _LIBP7_H_
