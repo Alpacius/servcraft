@@ -658,12 +658,12 @@ void p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size) {
 }
 
 // XXX message sending and coro resched are independent in the scheduler
-void p7_send_by_entity(void *dst, struct p7_msg *msg) {
+int p7_send_by_entity(void *dst, struct p7_msg *msg) {
     struct p7_coro *target = dst;
     struct p7_carrier *dst_carrier;
     msg->dst = dst;
     if (target->status & P7_CORO_STATUS_ALIVE == 0)
-        return;
+        return -1;
     if (target->carrier_id == self_view->carrier_id) {
         list_add_tail(&(msg->lctl), &(self_view->icc_info.localbox));
         dst_carrier = self_view;
@@ -674,6 +674,7 @@ void p7_send_by_entity(void *dst, struct p7_msg *msg) {
     }
     struct p7_intern_msg msgbuf = { .type = P7_INTERN_SENT };
     msgbuf.immpack_uintptr[0] = (uintptr_t) target;
+    msgbuf.immpack_uintptr[1] = (uintptr_t) self_view->sched_info.running;
 #define P7_SEND_TIMES 4
     uint32_t nsendtimes = 0;
     while (write(dst_carrier->iomon_info.condpipe[1], &msgbuf, sizeof(msgbuf)) == -1) {
@@ -683,6 +684,7 @@ void p7_send_by_entity(void *dst, struct p7_msg *msg) {
         }
     }
 #undef  P7_SEND_TIMES
+    return 0;
 }
 
 struct p7_msg *p7_recv(void) {
@@ -703,10 +705,12 @@ struct p7_msg *p7_recv(void) {
         return NULL;
 }
 
-void p7_send_by_name(const char *name, struct p7_msg *msg) {
+int p7_send_by_name(const char *name, struct p7_msg *msg) {
     struct p7_coro *dst = p7_namespace_find(name);
     if (dst != NULL)
-        p7_send_by_entity(dst, msg);
+        return p7_send_by_entity(dst, msg);
+    else
+        return -1;
 }
 
 void *p7_coro_register_name(const char *name) {

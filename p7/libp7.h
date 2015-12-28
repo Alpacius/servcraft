@@ -50,7 +50,7 @@ do { \
 
 void p7_send_by_entity(void *dst, struct p7_msg *msg);
 struct p7_msg *p7_recv(void);
-void p7_send_by_name(const char *name, struct p7_msg *msg);
+int p7_send_by_name(const char *name, struct p7_msg *msg);
 void *p7_coro_register_name(const char *name);
 void p7_coro_discard_name(void *name_handle);
 
