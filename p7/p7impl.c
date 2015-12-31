@@ -66,6 +66,7 @@ struct p7_coro *p7_coro_new_(void (*entry)(void *), void *arg, size_t stack_size
             coro->timedout = 0;
             coro->status = P7_CORO_STATUS_ALIVE;
             coro->trapper = NULL;
+            (coro->mailbox_cleanup = NULL), (coro->mailbox_cleanup_arg = NULL);
             init_list_head(&(coro->mailbox));
         }
     }
@@ -103,6 +104,7 @@ struct p7_coro *p7_coro_new(void (*entry)(void *), void *arg, size_t stack_size,
         }
         coro->status = P7_CORO_STATUS_ALIVE;
         coro->trapper = NULL;
+        (coro->mailbox_cleanup = NULL), (coro->mailbox_cleanup_arg = NULL);
         return coro;
     } else {
         return p7_coro_new_(entry, arg, stack_size, carrier_id, limbo);
@@ -376,7 +378,8 @@ void limbo_loop(void *unused) {
     while (1) {
         struct p7_coro *current = self_carrier->sched_info.running;
         __atomic_store_n(&(current->status), P7_CORO_STATUS_DYING, __ATOMIC_SEQ_CST);
-        // TODO message forwarding to the trapper
+        if (current->mailbox_cleanup != NULL)
+            current->mailbox_cleanup(current->mailbox_cleanup_arg);
         list_del(&(current->lctl));
         if (current->following != NULL) {
             list_del(&(current->following->lctl));
@@ -398,7 +401,7 @@ void p7_intern_handle_wakeup(struct p7_intern_msg *message) {
 static
 void p7_intern_handle_sent(struct p7_intern_msg *message) {
     struct p7_coro *coro = (struct p7_coro *) message->immpack_uintptr[0];
-    if (coro->status & P7_CORO_STATUS_FLAG_RECV) {
+    if (__atomic_load_n(&(coro->status), __ATOMIC_SEQ_CST) & P7_CORO_STATUS_FLAG_RECV) {
         if (coro->timedout == 0) {
             list_del(&(coro->lctl));
             list_add_head(&(coro->lctl), &(self_view->sched_info.coro_queue));
@@ -691,7 +694,8 @@ struct p7_msg *p7_recv(void) {
     list_ctl_t *ret;
     struct p7_coro *self = self_view->sched_info.running;
     if (list_is_empty(&(self->mailbox))) {
-        self->status |= P7_CORO_STATUS_FLAG_RECV;
+        //self->status |= P7_CORO_STATUS_FLAG_RECV;
+        __atomic_or_fetch(&(self->status), P7_CORO_STATUS_FLAG_RECV, __ATOMIC_SEQ_CST);
         list_del(&(self->lctl));
         list_add_tail(&(self->lctl), &(self_view->sched_info.blocking_queue));
         self_view->sched_info.running = NULL;
@@ -719,6 +723,28 @@ void *p7_coro_register_name(const char *name) {
 
 void p7_coro_discard_name(void *name_handle) {
     p7_name_discard(name_handle);
+}
+
+void p7_coro_set_mailbox_cleaner(void (*cleaner)(void *)) {
+    self_view->sched_info.running->mailbox_cleanup = cleaner;
+}
+
+void p7_coro_set_mailbox_cleaner_arg(void *arg) {
+    self_view->sched_info.running->mailbox_cleanup_arg = arg;
+}
+
+void *p7_coro_get_mailbox_cleaner_arg(void) {
+    return self_view->sched_info.running->mailbox_cleanup_arg;
+}
+
+struct p7_msg *p7_mailbox_extract(void) {
+    list_ctl_t *ret = NULL;
+    if (!list_is_empty(&(self_view->sched_info.running->mailbox))) {
+        ret = self_view->sched_info.running->mailbox.next;
+        list_del(ret);
+        return container_of(ret, struct p7_msg, lctl);
+    } else 
+        return NULL;
 }
 
 int p7_iowrap_(int fd, int rdwr) {

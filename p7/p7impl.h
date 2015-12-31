@@ -37,6 +37,8 @@ struct p7_coro {
     uint32_t status;
     struct p7_coro_cntx *cntx;
     struct p7_coro *following, *trapper;
+    void (*mailbox_cleanup)(void *);
+    void *mailbox_cleanup_arg;
 };
 
 #define     P7_CORO_STATUS_DYING       0

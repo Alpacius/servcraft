@@ -25,6 +25,7 @@ LIBP7_0.3 {
         p7_send_by_entity; p7_send_by_name;
         p7_recv;
         p7_coro_register_name; p7_coro_discard_name;
+        p7_coro_set_mailbox_cleaner; p7_coro_set_mailbox_cleaner_arg; p7_coro_get_mailbox_cleaner_arg; p7_mailbox_extract;
     local:
         *;
 };

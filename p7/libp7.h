@@ -65,4 +65,9 @@ void p7_coro_discard_name(void *name_handle);
     msg_; \
 })
 
+void p7_coro_set_mailbox_cleaner(void (*cleaner)(void *));
+void p7_coro_set_mailbox_cleaner_arg(void *arg);
+void *p7_coro_get_mailbox_cleaner_arg(void);
+struct p7_msg *p7_mailbox_extract(void);
+
 #endif      // _LIBP7_H_
