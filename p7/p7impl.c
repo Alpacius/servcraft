@@ -573,7 +573,7 @@ void sched_loop_cntx_wraper(void *unused_arg) {
 void p7_coro_yield(void);
 
 static
-void coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
+int coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
     //atom_add_uint32(next_carrier);
     uint32_t next_carrier_id = __atomic_fetch_add(&next_carrier, 1, __ATOMIC_SEQ_CST);
     struct p7_carrier *next_load = carriers[next_carrier_id % ncarriers];
@@ -601,6 +601,7 @@ void coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
         struct p7_coro *coro = p7_coro_new(entry, arg, stack_size, self_view->carrier_id, self_view->mgr_cntx.limbo);
         list_add_tail(&(coro->lctl), &(self_view->sched_info.coro_queue));
     }
+    return (next_carrier_id % ncarriers) == self_view->carrier_id;
 }
 
 struct p7_carrier *p7_carrier_self_tl(void) {
@@ -646,8 +647,8 @@ void p7_coro_yield(void) {
 }
 
 void p7_coro_create(void (*entry)(void *), void *arg, size_t stack_size) {
-    coro_create_request(entry, arg, stack_size);
-    p7_coro_yield();
+    if (coro_create_request(entry, arg, stack_size))
+        p7_coro_yield();
 }
 
 void p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size) {
