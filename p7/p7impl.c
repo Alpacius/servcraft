@@ -253,48 +253,6 @@ void p7_coro_rq_delete(struct p7_coro_rq *rq) {
 }
 
 static
-struct p7_waitk *p7_waitk_new_(void) {
-    __auto_type allocator = p7_root_alloc_get_proxy();
-    struct p7_waitk *k = scraft_allocate(allocator, sizeof(struct p7_waitk));
-    (k != NULL) && (k->from = self_view->carrier_id);
-    return k;
-}
-
-static
-void p7_waitk_delete_(struct p7_waitk *k) {
-    __auto_type allocator = p7_root_alloc_get_proxy();
-    scraft_deallocate(allocator, k);
-}
-
-static
-struct p7_waitk *p7_waitk_new(void) {
-    pthread_spin_lock(&(self_view->sched_info.waitk_pool_lock));
-    if (!list_is_empty(&(self_view->sched_info.waitk_pool_tl))) {
-        list_ctl_t *waitkref = self_view->sched_info.waitk_pool_tl.next;
-        list_del(waitkref);
-        self_view->sched_info.waitk_pool_size--;
-        pthread_spin_unlock(&(self_view->sched_info.waitk_pool_lock));
-        return container_of(waitkref, struct p7_waitk, lctl);
-    } else {
-        pthread_spin_unlock(&(self_view->sched_info.waitk_pool_lock));
-        return p7_waitk_new_();
-    }
-}
-
-static
-void p7_waitk_delete(struct p7_waitk *k) {
-    pthread_spin_lock(&(carriers[k->from]->sched_info.waitk_pool_lock));
-    if (self_view->sched_info.waitk_pool_size <= self_view->sched_info.waitk_pool_cap) {
-        self_view->sched_info.waitk_pool_size++;
-        list_add_tail(&(k->lctl), &(self_view->sched_info.waitk_pool_tl));
-        pthread_spin_unlock(&(carriers[k->from]->sched_info.waitk_pool_lock));
-    } else {
-        pthread_spin_unlock(&(carriers[k->from]->sched_info.waitk_pool_lock));
-        p7_waitk_delete_(k);
-    }
-}
-
-static
 uint64_t get_timeval_current(void) {
     //struct timeval tv;
     //gettimeofday(&tv, NULL);
@@ -483,7 +441,7 @@ void *sched_loop(void *arg) {
                         list_add_head(&(kwrap->coro->lctl), &(self->sched_info.coro_queue));
                     else
                         kwrap->coro->timedout = 0;
-                    p7_waitk_delete(kwrap);
+                    //p7_waitk_delete(kwrap);   XXX 20160103: removed persistent wait kontinuation
                 }
             } else {
                 void (*p7_intern_handlers[])(struct p7_intern_msg *) = {
@@ -749,29 +707,24 @@ struct p7_msg *p7_mailbox_extract(void) {
 }
 
 int p7_iowrap_(int fd, int rdwr) {
-    struct p7_waitk *k = p7_waitk_new();
-    if (k == NULL)
-        return -1;
-    k->coro = self_view->sched_info.running;
-    //k->fd = -1;
-    k->fd = fd;
-    (k->event.data.ptr = k), (k->event.events = EPOLLONESHOT);
-    ((rdwr & P7_IOMODE_READ) && (k->event.events |= EPOLLIN)), ((rdwr & P7_IOMODE_WRITE) && (k->event.events |= EPOLLOUT));
-    (rdwr & P7_IOCTL_ET) && (k->event.events |= EPOLLET);
-    (rdwr & P7_IOMODE_ERROR) && (k->event.events |= EPOLLERR); // useless
+    struct p7_waitk k;
+    k.from = self_view->carrier_id;
+    k.coro = self_view->sched_info.running;
+    k.fd = fd;
+    (k.event.data.ptr = &k), (k.event.events = EPOLLONESHOT);
+    ((rdwr & P7_IOMODE_READ) && (k.event.events |= EPOLLIN)), ((rdwr & P7_IOMODE_WRITE) && (k.event.events |= EPOLLOUT));
+    (rdwr & P7_IOCTL_ET) && (k.event.events |= EPOLLET);
+    (rdwr & P7_IOMODE_ERROR) && (k.event.events |= EPOLLERR); // useless
     int ret;
-    ret = epoll_ctl(self_view->iomon_info.epfd, EPOLL_CTL_ADD, fd, &(k->event));
+    ret = epoll_ctl(self_view->iomon_info.epfd, EPOLL_CTL_ADD, fd, &(k.event));
     if (ret == -1) {
         int errsv = errno;
-        __auto_type allocator = p7_root_alloc_get_proxy();
-        scraft_deallocate(allocator, k);
         return -1;
     }
-    list_del(&(k->coro->lctl));
+    list_del(&(k.coro->lctl));
     self_view->sched_info.running = NULL;
-    swapcontext(&(k->coro->cntx->uc), &(self_view->mgr_cntx.sched->uc));
+    swapcontext(&(k.coro->cntx->uc), &(self_view->mgr_cntx.sched->uc));
     return ret;
-    
 }
 
 int p7_init(unsigned nthreads, void (*at_startup)(void *), void *arg) {
