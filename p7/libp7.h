@@ -6,7 +6,7 @@
 #include    "./rwspin.h"
 
 void p7_coro_yield(void);
-void p7_coro_create(void (*entry)(void *), void *arg, size_t stack_size);
+int p7_coro_create(void (*entry)(void *), void *arg, size_t stack_size);
 void p7_timed_event(uint64_t dt, void (*func)(void *), void *arg, void (*dtor)(void *, void (*)(void *)));
 struct p7_timer_event *p7_timed_event_assoc(uint64_t dt, void (*func)(void *), void *arg, void (*dtor)(void *, void (*)(void *)));
 int p7_iowrap_(int fd, int rdwr);
@@ -14,7 +14,7 @@ unsigned p7_timedout_(void);
 unsigned p7_timeout_reset(void);
 void p7_timer_clean_(struct p7_timer_event *ev);
 int p7_init(unsigned nthreads, void (*at_startup)(void *), void *arg);
-void p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size);
+int p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size);
 
 #define p7_iowrap(_fn_, _rdwr_, _fd_, ...) \
 ({ \

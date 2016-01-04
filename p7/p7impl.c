@@ -554,7 +554,8 @@ int coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
                 }
 #undef      P7_SEND_TIMES
             }
-        }
+        } else
+            return -1;
     } else {
         struct p7_coro *coro = p7_coro_new(entry, arg, stack_size, self_view->carrier_id, self_view->mgr_cntx.limbo);
         list_add_tail(&(coro->lctl), &(self_view->sched_info.coro_queue));
@@ -604,19 +605,25 @@ void p7_coro_yield(void) {
     swapcontext(&(self_coro->cntx->uc), &(self->mgr_cntx.sched->uc));
 }
 
-void p7_coro_create(void (*entry)(void *), void *arg, size_t stack_size) {
-    if (coro_create_request(entry, arg, stack_size))
+int p7_coro_create(void (*entry)(void *), void *arg, size_t stack_size) {
+    if (coro_create_request(entry, arg, stack_size) > -1) {
         p7_coro_yield();
+        return 0;
+    } else
+        return -1;
 }
 
-void p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size) {
+int p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size) {
     struct p7_coro *coro = p7_coro_new(entry, arg, stack_size, self_view->carrier_id, self_view->mgr_cntx.limbo), *last = self_view->sched_info.running;
+    if (coro == NULL)
+        return -1;
     coro->following = last;
     list_del(&(last->lctl));
     list_add_tail(&(last->lctl), &(self_view->sched_info.blocking_queue));
     list_add_tail(&(coro->lctl), &(self_view->sched_info.coro_queue));
     self_view->sched_info.running = NULL;
     swapcontext(&(last->cntx->uc), &(self_view->mgr_cntx.sched->uc));
+    return 0;
 }
 
 // XXX message sending and coro resched are independent in the scheduler
