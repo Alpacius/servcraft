@@ -1,7 +1,7 @@
 // using GCC extensions
 
-#ifndef        _UTIL_LIST_H_
-#define        _UTIL_LIST_H_
+#ifndef        UTIL_LIST_H_
+#define        UTIL_LIST_H_
 
 #include    <stddef.h>
 #include    "./miscutils.h"
@@ -19,7 +19,7 @@ static inline void init_list_head(list_ctl_t *h) {
     h->prev = h;
 }
 
-static inline void __list_add(list_ctl_t *e, list_ctl_t *p, list_ctl_t *n) {
+static inline void list_add__(list_ctl_t *e, list_ctl_t *p, list_ctl_t *n) {
     n->prev = e;
     e->next = n;
     e->prev = p;
@@ -27,20 +27,20 @@ static inline void __list_add(list_ctl_t *e, list_ctl_t *p, list_ctl_t *n) {
 }
 
 static inline void list_add_head(list_ctl_t *e, list_ctl_t *h) {
-    __list_add(e, h, h->next);
+    list_add__(e, h, h->next);
 }
 
 static inline void list_add_tail(list_ctl_t *e, list_ctl_t *h) {
-    __list_add(e, h->prev, h);
+    list_add__(e, h->prev, h);
 }
 
-static inline void __list_del(list_ctl_t *p, list_ctl_t *n) {
+static inline void list_del__(list_ctl_t *p, list_ctl_t *n) {
     n->prev = p;
     p->next = n;
 }
 
 static inline void list_del(list_ctl_t *e) {
-    __list_del(e->prev, e->next);
+    list_del__(e->prev, e->next);
     e->next = e->prev = NULL;
 }
 
@@ -65,4 +65,4 @@ static inline int list_is_empty(list_ctl_t *h) {
     for (pos = (head)->next; \
         ((tmp = pos) != (head)) && (pos = pos->next);)
 
-#endif        // _UTIL_LIST_H_
+#endif        // UTIL_LIST_H_

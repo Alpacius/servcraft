@@ -21,31 +21,31 @@
 #define     jmp_encode      \
 do { \
     void * _base_ip_ = $ + 10; \
-    void * _abs_target_ = _base_ip_ + (uintptr_t) *((void **) &_tramp_[ORIG_POS2]); \
-    *((void **) (&_tramp_[TRAMP_POS2])) = (void *) (_tramp_ + TRAMP_CODESIZE); \
-    *((void **) (&_tramp_[TRAMP_CODESIZE])) = _abs_target_; \
-    _tramp_[TRAMP_POS2 - 2] = 0xff; \
-    _tramp_[TRAMP_POS2 - 1] = 0x25; \
+    void * _abs_target_ = _base_ip_ + (uintptr_t) *((void **) &tramp__[ORIG_POS2]); \
+    *((void **) (&tramp__[TRAMP_POS2])) = (void *) (tramp__ + TRAMP_CODESIZE); \
+    *((void **) (&tramp__[TRAMP_CODESIZE])) = _abs_target_; \
+    tramp__[TRAMP_POS2 - 2] = 0xff; \
+    tramp__[TRAMP_POS2 - 1] = 0x25; \
 } while(0)
 #endif
 
 // XXX Now we have a stable frame pointer. Thanks to lh_mouse.
 
-#define _closure(_src_)    ({ void *(*_alloc_)(size_t) = (_src_); 
-#define _lambda(_rt_, ...) \
-        _rt_ $(__VA_ARGS__)
+#define _closure(src_)    ({ void *(*alloc__)(size_t) = (src_); 
+#define _lambda(rt_, ...) \
+        rt_ $(__VA_ARGS__)
 #define _closure_end    \
-        void *_sp_, *_bp_, *_cntx_; \
+        void *sp__, *bp__, *cntx__; \
         *(volatile char *)__builtin_alloca(sizeof(char)) = 0; \
-        asm volatile (GETSP : "=r" (_sp_)); \
-        asm volatile (GETBP : "=r" (_bp_)); \
-        char *_tramp_ = _alloc_(sizeof(char) * (TRAMP_SIZE + (unsigned long) (_bp_-_sp_))); \
-        memcpy(_tramp_, $, TRAMP_SIZE); \
-        _cntx_ = *((void **) (&_tramp_[TRAMP_POS])); \
-        memcpy(_tramp_ + TRAMP_SIZE, _cntx_, (unsigned long) (_bp_ - _cntx_)); \
-        *((void **) (&_tramp_[TRAMP_POS])) = \
-                (void *) (_tramp_ + TRAMP_SIZE); \
+        asm volatile (GETSP : "=r" (sp__)); \
+        asm volatile (GETBP : "=r" (bp__)); \
+        char *tramp__ = alloc__(sizeof(char) * (TRAMP_SIZE + (unsigned long) (bp__-sp__))); \
+        memcpy(tramp__, $, TRAMP_SIZE); \
+        cntx__ = *((void **) (&tramp__[TRAMP_POS])); \
+        memcpy(tramp__ + TRAMP_SIZE, cntx__, (unsigned long) (bp__ - cntx__)); \
+        *((void **) (&tramp__[TRAMP_POS])) = \
+                (void *) (tramp__ + TRAMP_SIZE); \
         jmp_encode; \
-        (typeof(&$)) ((void *) _tramp_); })
+        (typeof(&$)) ((void *) tramp__); })
 
 #endif      // CLOSURE_GCC_H_

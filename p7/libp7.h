@@ -1,5 +1,5 @@
-#ifndef     _LIBP7_H_
-#define     _LIBP7_H_
+#ifndef     LIBP7_H_
+#define     LIBP7_H_
 
 #include    "./p7impl.h"
 #include    "./spin.h"
@@ -16,24 +16,24 @@ void p7_timer_clean_(struct p7_timer_event *ev);
 int p7_init(unsigned nthreads, void (*at_startup)(void *), void *arg);
 int p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size);
 
-#define p7_iowrap(_fn_, _rdwr_, _fd_, ...) \
+#define p7_iowrap(fn__, rdwr__, fd__, ...) \
 ({ \
-    int fd_ = (_fd_), rdwr_ = (_rdwr_); \
-    __auto_type fn_ = (_fn_); \
+    int fd_ = (fd__), rdwr_ = (rdwr__); \
+    __auto_type fn_ = (fn__); \
     p7_iowrap_(fd_, rdwr_); \
     fn_(fd_, __VA_ARGS__); \
 })
 
-#define p7_io_notify(_fd_, _rdwr_) \
+#define p7_io_notify(fd__, rdwr__) \
 do { \
-    p7_iowrap_(_fd_, _rdwr_); \
+    p7_iowrap_(fd__, rdwr__); \
 } while (0)
 
-#define p7_iowrap_timed(_fn_, _rdwr_, _dt_, _fd_, ...) \
+#define p7_iowrap_timed(fn__, rdwr__, dt__, fd__, ...) \
 ({ \
-    int fd_ = (_fd_), rdwr_ = (_rdwr_); \
-    uint64_t dt_ = (_dt_); \
-    __auto_type fn_ = (_fn_); \
+    int fd_ = (fd__), rdwr_ = (rdwr__); \
+    uint64_t dt_ = (dt__); \
+    __auto_type fn_ = (fn__); \
     __auto_type ev_ = p7_timed_event_assoc(dt_, NULL, NULL, NULL); \
     p7_iowrap_(fd_, rdwr_); \
     int ret_; \
@@ -70,4 +70,4 @@ void p7_coro_set_mailbox_cleaner_arg(void *arg);
 void *p7_coro_get_mailbox_cleaner_arg(void);
 struct p7_msg *p7_mailbox_extract(void);
 
-#endif      // _LIBP7_H_
+#endif      // LIBP7_H_
