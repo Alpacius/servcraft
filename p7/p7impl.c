@@ -276,6 +276,11 @@ struct p7_timer_event *p7_timer_event_new_(uint64_t dt, unsigned from, struct p7
 }
 
 static
+void p7_timer_event_init(struct p7_timer_event *ev, uint64_t dt, unsigned from, struct p7_coro *coro, struct p7_cond_event *cond) {
+    (ev->tval = get_timeval_by_diff(dt)), (ev->from = from), (ev->coro = coro), (ev->condref = cond), (ev->rbtctl.key_ref = &(ev->tval));
+}
+
+static
 void p7_timer_event_del_(struct p7_timer_event *ev) {
     if (ev->hook.dtor != NULL)
         ev->hook.dtor(ev->hook.arg, ev->hook.func);
@@ -428,7 +433,7 @@ void *sched_loop(void *arg) {
                 if (ev_timer_expired->condref != NULL) {
                     // TODO condref
                 }
-                p7_timer_event_del(ev_timer_expired);
+                //p7_timer_event_del(ev_timer_expired);
             }
         }
         int ep_itr;
@@ -586,6 +591,17 @@ struct p7_timer_event *p7_timed_event_assoc(uint64_t dt, void (*func)(void *), v
     return ev;
 }
 
+struct p7_timer_event *p7_timed_event_immediate(struct p7_timer_event *ev, uint64_t dt, void (*func)(void *), void *arg, void (*dtor)(void *, void (*)(void *))) {
+    ev->tval = get_timeval_by_diff(dt);
+    ev->from = self_view->carrier_id;
+    ev->coro = self_view->sched_info.running;
+    ev->condref = NULL;
+    ev->rbtctl.key_ref = &(ev->tval);
+    p7_timer_event_hook(ev, func, arg, dtor);
+    timer_add_event(ev, &(self_view->sched_info.timer_queue));
+    return ev;
+}
+
 unsigned p7_timedout_(void) {
     return self_view->sched_info.running->timedout;
 }
@@ -594,8 +610,16 @@ unsigned p7_timeout_reset(void) {
     self_view->sched_info.running->timedout = 0;
 }
 
+void p7_timer_clean__(struct p7_timer_event *ev) {
+    timer_remove_event(ev, &(self_view->sched_info.timer_queue));
+}
+
 void p7_timer_clean_(struct p7_timer_event *ev) {
     timer_remove_event(ev, &(self_view->sched_info.timer_queue));
+    p7_timer_event_del(ev);
+}
+
+void p7_timer_clean(struct p7_timer_event *ev) {
     p7_timer_event_del(ev);
 }
 

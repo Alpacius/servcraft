@@ -9,10 +9,13 @@ void p7_coro_yield(void);
 int p7_coro_create(void (*entry)(void *), void *arg, size_t stack_size);
 void p7_timed_event(uint64_t dt, void (*func)(void *), void *arg, void (*dtor)(void *, void (*)(void *)));
 struct p7_timer_event *p7_timed_event_assoc(uint64_t dt, void (*func)(void *), void *arg, void (*dtor)(void *, void (*)(void *)));
+struct p7_timer_event *p7_timed_event_immediate(struct p7_timer_event *ev, uint64_t dt, void (*func)(void *), void *arg, void (*dtor)(void *, void (*)(void *)));
 int p7_iowrap_(int fd, int rdwr);
 unsigned p7_timedout_(void);
 unsigned p7_timeout_reset(void);
+void p7_timer_clean__(struct p7_timer_event *ev);
 void p7_timer_clean_(struct p7_timer_event *ev);
+void p7_timer_clean(struct p7_timer_event *ev);
 int p7_init(unsigned nthreads, void (*at_startup)(void *), void *arg);
 int p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size);
 
@@ -34,7 +37,8 @@ do { \
     int fd_ = (fd__), rdwr_ = (rdwr__); \
     uint64_t dt_ = (dt__); \
     __auto_type fn_ = (fn__); \
-    __auto_type ev_ = p7_timed_event_assoc(dt_, NULL, NULL, NULL); \
+    struct p7_timer_event ev; \
+    p7_timed_event_immediate(&ev, dt_, NULL, NULL, NULL); \
     p7_iowrap_(fd_, rdwr_); \
     int ret_; \
     if (p7_timedout_()) { \
@@ -42,7 +46,7 @@ do { \
         p7_timeout_reset(); \
     } \
     else { \
-        p7_timer_clean_(ev_); \
+        p7_timer_clean__(&ev); \
         ret_ = fn_(fd_, __VA_ARGS__); \
     } \
     (volatile int) ret_; \
@@ -56,12 +60,13 @@ void p7_coro_discard_name(void *name_handle);
 
 #define p7_recv_timed(dt_) \
 ({ \
-    __auto_type ev_ = p7_timed_event_assoc(dt_, NULL, NULL, NULL); \
+    struct p7_timer_event ev; \
+    p7_timed_event_immediate(&ev, dt_, NULL, NULL, NULL); \
     struct p7_msg *msg_ = p7_recv(); \
     if (p7_timedout_()) \
         p7_timeout_reset(); \
     else \
-        p7_timer_clean_(ev_); \
+        p7_timer_clean__(&ev); \
     msg_; \
 })
 
