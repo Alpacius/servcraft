@@ -578,10 +578,11 @@ unsigned p7_get_ncarriers(void) {
 
 // APIs begin here
 
-void p7_timed_event(uint64_t dt, void (*func)(void *), void *arg, void (*dtor)(void *, void (*)(void *))) {
+struct p7_timer_event *p7_timed_event(uint64_t dt, void (*func)(void *), void *arg, void (*dtor)(void *, void (*)(void *))) {
     struct p7_timer_event *ev = p7_timer_event_new_(dt, self_view->carrier_id, NULL, NULL);
     p7_timer_event_hook(ev, func, arg, dtor);
     timer_add_event(ev, &(self_view->sched_info.timer_queue));
+    return ev;
 }
 
 struct p7_timer_event *p7_timed_event_assoc(uint64_t dt, void (*func)(void *), void *arg, void (*dtor)(void *, void (*)(void *))) {
