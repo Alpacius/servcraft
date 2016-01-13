@@ -75,4 +75,6 @@ void p7_coro_set_mailbox_cleaner_arg(void *arg);
 void *p7_coro_get_mailbox_cleaner_arg(void);
 struct p7_msg *p7_mailbox_extract(void);
 
+int p7_preinit_namespace_size(uint64_t namespace_size);
+
 #endif      // LIBP7_H_

@@ -759,12 +759,18 @@ int p7_iowrap_(int fd, int rdwr) {
     return ret;
 }
 
+static uint64_t p7_namespace_size = 0;
+
+int p7_preinit_namespace_size(uint64_t namespace_size) {
+    return (p7_namespace_size == 0) ? ((p7_namespace_size = namespace_size), 0) : -1;
+}
+
 int p7_init(unsigned nthreads, void (*at_startup)(void *), void *arg) {
     if (nthreads < 1)
         nthreads = 1;
     ncarriers = nthreads;
 #define P7_NAMESPACE_SIZE   512
-    p7_namespace_init(P7_NAMESPACE_SIZE);
+    p7_namespace_init((p7_namespace_size) ? p7_namespace_size : P7_NAMESPACE_SIZE);
 #undef  P7_NAMESPACE_SIZE
     __auto_type allocator = p7_root_alloc_get_proxy();
     carriers = scraft_allocate(allocator, sizeof(struct p7_carrier *) * ncarriers);
