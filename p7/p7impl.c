@@ -792,7 +792,7 @@ int p7_init_real(unsigned nthreads, void (*at_startup)(void *), void *arg) {
         pthread_create(&(carriers[carrier_idx]->tid), NULL, sched_loop, carriers[carrier_idx]);
     }
     swapcontext(&(main_ctlflow->cntx->uc), &(carriers[0]->mgr_cntx.sched->uc));
-    return 1;
+    return 0;
 }
 
 __asm__(".symver p7_init_0_1,p7_init@LIBP7_0.1");
@@ -802,5 +802,5 @@ int p7_init_0_1(unsigned nthreads, void (*at_startup)(void *), void *arg) {
 
 __asm__(".symver p7_init_0_4,p7_init@@LIBP7_0.4");
 int p7_init_0_4(struct p7_init_config config) {
-    return p7_preinit_namespace_size(config.namespace_config.namespace_size) && p7_init_real(config.pthread_config.nthreads, config.pthread_config.at_startup, config.pthread_config.arg_startup);
+    return p7_preinit_namespace_size(config.namespace_config.namespace_size) && (p7_init_real(config.pthread_config.nthreads, config.pthread_config.at_startup, config.pthread_config.arg_startup) == 0);
 }
