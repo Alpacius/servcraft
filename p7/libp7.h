@@ -16,7 +16,8 @@ unsigned p7_timeout_reset(void);
 void p7_timer_clean__(struct p7_timer_event *ev);
 void p7_timer_clean_(struct p7_timer_event *ev);
 void p7_timer_clean(struct p7_timer_event *ev);
-int p7_init(unsigned nthreads, void (*at_startup)(void *), void *arg);
+//int p7_init(unsigned nthreads, void (*at_startup)(void *), void *arg);
+int p7_init(struct p7_init_config);
 int p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size);
 
 #define p7_iowrap(fn__, rdwr__, fd__, ...) \

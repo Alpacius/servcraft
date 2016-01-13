@@ -31,3 +31,10 @@ LIBP7_0.3 {
     local:
         *;
 };
+
+LIBP7_0.4 {
+    global:
+        p7_init;
+    local:
+        *;
+};

@@ -179,4 +179,19 @@ struct p7_msg {
 
 #define     P7_ACTIVE_IDX_MAGIC 0
 
-#endif      // _P7_IMPL_H_
+struct p7_pthread_config {
+    unsigned nthreads;
+    void (*at_startup)(void *);
+    void *arg_startup;
+};
+
+struct p7_namespace_config {
+    uint64_t namespace_size;
+};
+
+struct p7_init_config {
+    struct p7_pthread_config pthread_config;
+    struct p7_namespace_config namespace_config;
+};
+
+#endif      // P7_IMPL_H_
