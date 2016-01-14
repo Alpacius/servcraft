@@ -367,7 +367,7 @@ void p7_intern_handle_sent(struct p7_intern_msg *message) {
     if (__atomic_load_n(&(coro->status), __ATOMIC_SEQ_CST) & P7_CORO_STATUS_FLAG_RECV) {
         if (coro->timedout == 0) {
             list_del(&(coro->lctl));
-            list_add_head(&(coro->lctl), &(self_view->sched_info.coro_queue));
+            list_add_tail(&(coro->lctl), &(self_view->sched_info.coro_queue));      // XXX 20160114: sched fix
         } else
             coro->timedout = 1;
         coro->status &= ~P7_CORO_STATUS_FLAG_RECV;
@@ -428,7 +428,7 @@ void *sched_loop(void *arg) {
                     __auto_type old_timedout = ev_timer_expired->coro->timedout;
                     ev_timer_expired->coro->timedout = 1;
                     if (old_timedout == 0)
-                        list_add_head(&(ev_timer_expired->coro->lctl), &(self->sched_info.coro_queue));
+                        list_add_tail(&(ev_timer_expired->coro->lctl), &(self->sched_info.coro_queue));     // XXX 20160114: sched fix
                 }
                 if (ev_timer_expired->condref != NULL) {
                     // TODO condref
@@ -443,7 +443,7 @@ void *sched_loop(void *arg) {
                 // XXX be it slower when active connections are many.
                 if (epoll_ctl(self->iomon_info.epfd, EPOLL_CTL_DEL, kwrap->fd, NULL) != -1) {
                     if (kwrap->coro->timedout == 0)
-                        list_add_head(&(kwrap->coro->lctl), &(self->sched_info.coro_queue));
+                        list_add_tail(&(kwrap->coro->lctl), &(self->sched_info.coro_queue));    // XXX 20160114: sched fix
                     else
                         kwrap->coro->timedout = 0;
                     //p7_waitk_delete(kwrap);   XXX 20160103: removed persistent wait kontinuation
@@ -511,8 +511,10 @@ void *sched_loop(void *arg) {
         if (!list_is_empty(&(self->sched_info.coro_queue))) {
             if (self->sched_info.running != NULL) {
                 list_ctl_t *last_coro = &(self->sched_info.running->lctl); //self->sched_info.coro_queue.next;
-                list_del(last_coro);
-                list_add_tail(last_coro, &(self->sched_info.coro_queue));
+                if (last_coro == self->sched_info.coro_queue.next) {
+                    list_del(last_coro);
+                    list_add_tail(last_coro, &(self->sched_info.coro_queue));
+                }
             }
             list_ctl_t *next_coro = self->sched_info.coro_queue.next;
             self->sched_info.running = container_of(next_coro, struct p7_coro, lctl);
