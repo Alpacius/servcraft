@@ -640,6 +640,10 @@ int p7_coro_create(void (*entry)(void *), void *arg, size_t stack_size) {
         return -1;
 }
 
+int p7_coro_create_async(void (*entry)(void *), void *arg, size_t stack_size) {
+    return (coro_create_request(entry, arg, stack_size) > -1) ? 0 : -1;
+}
+
 int p7_coro_concat(void (*entry)(void *), void *arg, size_t stack_size) {
     struct p7_coro *coro = p7_coro_new(entry, arg, stack_size, self_view->carrier_id, self_view->mgr_cntx.limbo), *last = self_view->sched_info.running;
     if (coro == NULL)

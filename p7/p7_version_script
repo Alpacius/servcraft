@@ -35,6 +35,7 @@ LIBP7_0.3 {
 LIBP7_0.4 {
     global:
         p7_init;
+        p7_coro_create_async;
     local:
         *;
 };
