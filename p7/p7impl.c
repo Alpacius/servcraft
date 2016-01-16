@@ -505,7 +505,7 @@ void *sched_loop(void *arg) {
                 list_del(t);
                 struct p7_msg *msg = container_of(t, struct p7_msg, lctl);
                 struct p7_coro *dst = msg->dst;
-                if (dst->status != P7_CORO_STATUS_DYING)
+                if (__atomic_load_n(&(dst->status), __ATOMIC_SEQ_CST) != P7_CORO_STATUS_DYING)
                     list_add_tail(&(msg->lctl), &(dst->mailbox));
                 else if (msg->dtor != NULL)
                     msg->dtor(msg, msg->dtor_arg);
