@@ -370,7 +370,7 @@ void p7_intern_handle_sent(struct p7_intern_msg *message) {
             list_add_tail(&(coro->lctl), &(self_view->sched_info.coro_queue));      // XXX 20160114: sched fix
         } else
             coro->timedout = 0;
-        coro->status &= ~P7_CORO_STATUS_FLAG_RECV;
+        __atomic_and_fetch(&(coro->status), ~P7_CORO_STATUS_FLAG_RECV, __ATOMIC_SEQ_CST);
     }
 }
 
