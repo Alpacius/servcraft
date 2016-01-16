@@ -158,6 +158,7 @@ struct p7_carrier *p7_carrier_prepare(unsigned carrier_id, unsigned nevents, voi
         carrier->sched_info.active_idx = P7_ACTIVE_IDX_MAGIC;
         init_list_head(&(carrier->sched_info.coro_queue));
         init_list_head(&(carrier->sched_info.blocking_queue));
+        init_list_head(&(carrier->sched_info.dying_queue));
         init_list_head(&(carrier->sched_info.rq_pool_tl));
         init_list_head(&(carrier->sched_info.coro_pool_tl));
         init_list_head(&(carrier->sched_info.waitk_pool_tl));
@@ -350,7 +351,8 @@ void limbo_loop(void *unused) {
             list_add_tail(&(current->following->lctl), &(self_carrier->sched_info.coro_queue));
         }
         self_carrier->sched_info.running = NULL;
-        p7_coro_delete(current);
+        //p7_coro_delete(current);
+        list_add_tail(&(current->lctl), &(self_carrier->sched_info.dying_queue));
         swapcontext(&(self_carrier->mgr_cntx.limbo->cntx->uc), &(self_carrier->mgr_cntx.sched->uc));
     }
 }
@@ -496,13 +498,17 @@ void *sched_loop(void *arg) {
             }
         }
 
+        // Mail dispatching is done before dying coros are dead. 
         void mailbox_dispatch(list_ctl_t *box) {
             list_ctl_t *p, *t;
             list_foreach_remove(p, box, t) {
                 list_del(t);
                 struct p7_msg *msg = container_of(t, struct p7_msg, lctl);
                 struct p7_coro *dst = msg->dst;
-                list_add_tail(&(msg->lctl), &(dst->mailbox));
+                if (dst->status != P7_CORO_STATUS_DYING)
+                    list_add_tail(&(msg->lctl), &(dst->mailbox));
+                else if (msg->dtor != NULL)
+                    msg->dtor(msg, msg->dtor_arg);
             }
         }
         uint32_t idx_mailbox;
@@ -512,6 +518,14 @@ void *sched_loop(void *arg) {
             mailbox_dispatch(target_mailbox);
         }
         mailbox_dispatch(&(self->icc_info.localbox));
+
+        // Now we're safe. R.I.P. dying workers.
+        h = &(self->sched_info.dying_queue);
+        list_foreach_remove(p, h, t) {
+            list_del(t);
+            struct p7_coro *coro_dying = container_of(t, struct p7_coro, lctl);
+            p7_coro_delete(coro_dying);
+        }
 
         // into the fight we leap
         // sched_info.running is only a "view"

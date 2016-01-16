@@ -116,7 +116,7 @@ struct p7_carrier {
     pthread_t tid;
     unsigned carrier_id;
     struct {
-        list_ctl_t coro_queue, blocking_queue;
+        list_ctl_t coro_queue, blocking_queue, dying_queue;
         list_ctl_t rq_pool_tl, coro_pool_tl, waitk_pool_tl;
         list_ctl_t rq_queues[2], *active_rq_queue, *local_rq_queue;
         volatile uint8_t active_idx;
@@ -158,6 +158,8 @@ struct p7_intern_msg {
 struct p7_msg {
     list_ctl_t lctl;
     void *dst;
+    void (*dtor)(struct p7_msg *, void *);
+    void *dtor_arg;
 };
 
 #define     P7_INTERN_RESERVED0 0
