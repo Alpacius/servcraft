@@ -33,7 +33,7 @@ struct p7_coro {
         void (*entry)(void *);
     } func_info;
     unsigned carrier_id;
-    unsigned timedout;
+    unsigned timedout, resched;
     uint32_t status;
     struct p7_coro_cntx *cntx;
     struct p7_coro *following, *trapper;

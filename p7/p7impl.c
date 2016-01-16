@@ -63,7 +63,7 @@ struct p7_coro *p7_coro_new_(void (*entry)(void *), void *arg, size_t stack_size
         if (coro != NULL) {
             (coro->carrier_id = carrier_id), (coro->cntx = cntx), (coro->following = NULL);
             (coro->func_info.entry = entry), (coro->func_info.arg = arg);
-            coro->timedout = 0;
+            coro->timedout = coro->resched = 0;
             coro->status = P7_CORO_STATUS_ALIVE;
             coro->trapper = NULL;
             (coro->mailbox_cleanup = NULL), (coro->mailbox_cleanup_arg = NULL);
@@ -104,6 +104,7 @@ struct p7_coro *p7_coro_new(void (*entry)(void *), void *arg, size_t stack_size,
         }
         coro->status = P7_CORO_STATUS_ALIVE;
         coro->trapper = NULL;
+        coro->timedout = coro->resched = 0;
         (coro->mailbox_cleanup = NULL), (coro->mailbox_cleanup_arg = NULL);
         return coro;
     } else {
@@ -346,7 +347,7 @@ void limbo_loop(void *unused) {
         list_del(&(current->lctl));
         if (current->following != NULL) {
             list_del(&(current->following->lctl));
-            list_add_head(&(current->following->lctl), &(self_carrier->sched_info.coro_queue));
+            list_add_tail(&(current->following->lctl), &(self_carrier->sched_info.coro_queue));
         }
         self_carrier->sched_info.running = NULL;
         p7_coro_delete(current);
@@ -365,10 +366,12 @@ static
 void p7_intern_handle_sent(struct p7_intern_msg *message) {
     struct p7_coro *coro = (struct p7_coro *) message->immpack_uintptr[0];
     if (__atomic_load_n(&(coro->status), __ATOMIC_SEQ_CST) & P7_CORO_STATUS_FLAG_RECV) {
-        if (coro->timedout == 0) {
+        if (coro->resched == 0) {
             list_del(&(coro->lctl));
             list_add_tail(&(coro->lctl), &(self_view->sched_info.coro_queue));      // XXX 20160114: sched fix
-        } else
+            coro->resched = 1;
+        }
+        if (coro->timedout)
             coro->timedout = 0;
         __atomic_and_fetch(&(coro->status), ~P7_CORO_STATUS_FLAG_RECV, __ATOMIC_SEQ_CST);
     }
@@ -425,10 +428,12 @@ void *sched_loop(void *arg) {
                 if (ev_timer_expired->hook.func != NULL)
                     ev_timer_expired->hook.func(ev_timer_expired->hook.arg);
                 if (ev_timer_expired->coro != NULL) {
-                    __auto_type old_timedout = ev_timer_expired->coro->timedout;
                     ev_timer_expired->coro->timedout = 1;
-                    if (old_timedout == 0)
+                    if (ev_timer_expired->coro->resched == 0) {
+                        list_del(&(ev_timer_expired->coro->lctl));
                         list_add_tail(&(ev_timer_expired->coro->lctl), &(self->sched_info.coro_queue));     // XXX 20160114: sched fix
+                        ev_timer_expired->coro->resched = 1;
+                    }
                 }
                 if (ev_timer_expired->condref != NULL) {
                     // TODO condref
@@ -442,9 +447,12 @@ void *sched_loop(void *arg) {
             if (kwrap->fd != self->iomon_info.condpipe[0]) {
                 // XXX be it slower when active connections are many.
                 if (epoll_ctl(self->iomon_info.epfd, EPOLL_CTL_DEL, kwrap->fd, NULL) != -1) {
-                    if (kwrap->coro->timedout == 0)
+                    if (kwrap->coro->resched == 0) {
+                        list_del(&(kwrap->coro->lctl));
                         list_add_tail(&(kwrap->coro->lctl), &(self->sched_info.coro_queue));    // XXX 20160114: sched fix
-                    else
+                        kwrap->coro->resched = 1;
+                    }
+                    if (kwrap->coro->timedout)
                         kwrap->coro->timedout = 0;
                     //p7_waitk_delete(kwrap);   XXX 20160103: removed persistent wait kontinuation
                 }
@@ -518,6 +526,7 @@ void *sched_loop(void *arg) {
             }
             list_ctl_t *next_coro = self->sched_info.coro_queue.next;
             self->sched_info.running = container_of(next_coro, struct p7_coro, lctl);
+            self->sched_info.running->resched = 0;
             swapcontext(&(self->mgr_cntx.sched->uc), &(self->sched_info.running->cntx->uc));
         }
     }
@@ -760,6 +769,7 @@ int p7_iowrap_(int fd, int rdwr) {
         return -1;
     }
     list_del(&(k.coro->lctl));
+    list_add_tail(&(k.coro->lctl), &(self_view->sched_info.blocking_queue));
     self_view->sched_info.running = NULL;
     swapcontext(&(k.coro->cntx->uc), &(self_view->mgr_cntx.sched->uc));
     return ret;
