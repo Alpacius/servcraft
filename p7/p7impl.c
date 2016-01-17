@@ -342,7 +342,7 @@ void limbo_loop(void *unused) {
     struct p7_carrier *self_carrier = self_view;
     while (1) {
         struct p7_coro *current = self_carrier->sched_info.running;
-        __atomic_store_n(&(current->status), P7_CORO_STATUS_DYING, __ATOMIC_SEQ_CST);
+        __atomic_and_fetch(&(current->status), ~P7_CORO_STATUS_ALIVE, __ATOMIC_SEQ_CST);
         if (current->mailbox_cleanup != NULL)
             current->mailbox_cleanup(current->mailbox_cleanup_arg);
         list_del(&(current->lctl));
@@ -505,7 +505,7 @@ void *sched_loop(void *arg) {
                 list_del(t);
                 struct p7_msg *msg = container_of(t, struct p7_msg, lctl);
                 struct p7_coro *dst = msg->dst;
-                if (__atomic_load_n(&(dst->status), __ATOMIC_SEQ_CST) != P7_CORO_STATUS_DYING)
+                if (__atomic_load_n(&(dst->status), __ATOMIC_SEQ_CST) & P7_CORO_STATUS_ALIVE)
                     list_add_tail(&(msg->lctl), &(dst->mailbox));
                 else if (msg->dtor != NULL)
                     msg->dtor(msg, msg->dtor_arg);
@@ -731,9 +731,11 @@ struct p7_msg *p7_recv(void) {
 
 int p7_send_by_name(const char *name, struct p7_msg *msg) {
     struct p7_coro *dst = p7_namespace_find(name);
-    if (dst != NULL)
-        return p7_send_by_entity(dst, msg);
-    else
+    if (dst != NULL) {
+        __atomic_or_fetch(&(dst->status), P7_CORO_STATUS_FLAG_DECAY, __ATOMIC_SEQ_CST);
+        int ret = p7_send_by_entity(dst, msg);
+        __atomic_and_fetch(&(dst->status), ~P7_CORO_STATUS_FLAG_DECAY, __ATOMIC_SEQ_CST);
+    } else
         return -1;
 }
 

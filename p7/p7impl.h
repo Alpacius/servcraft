@@ -44,6 +44,7 @@ struct p7_coro {
 #define     P7_CORO_STATUS_DYING       0
 #define     P7_CORO_STATUS_ALIVE       1
 #define     P7_CORO_STATUS_FLAG_RECV   2
+#define     P7_CORO_STATUS_FLAG_DECAY  4
 
 // XXX I see frag!
 struct p7_coro_rq {
