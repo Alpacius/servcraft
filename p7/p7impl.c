@@ -524,7 +524,8 @@ void *sched_loop(void *arg) {
         list_foreach_remove(p, h, t) {
             list_del(t);
             struct p7_coro *coro_dying = container_of(t, struct p7_coro, lctl);
-            p7_coro_delete(coro_dying);
+            if ((__atomic_load_n(&(coro_dying->status), __ATOMIC_SEQ_CST) & P7_CORO_STATUS_FLAG_DECAY) == 0)
+                p7_coro_delete(coro_dying);
         }
 
         // into the fight we leap
