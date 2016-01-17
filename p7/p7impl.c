@@ -407,6 +407,7 @@ void *sched_loop(void *arg) {
     while (1) {
         pthread_spin_lock(&(self->sched_info.rq_queue_lock));
         int ep_timeout = (list_is_empty(&(self->sched_info.coro_queue)) && list_is_empty(&(self->sched_info.rq_queues[0])) && list_is_empty(&(self->sched_info.rq_queues[1]))) ? -1 : 0;
+        atom_store_int32(self->iomon_info.is_blocking, 1);    // XXX slow but safe
         pthread_spin_unlock(&(self->sched_info.rq_queue_lock));
         struct p7_timer_event *ev_earliest = timer_peek_earliest(&(self->sched_info.timer_queue));
         uint64_t tval_before = get_timeval_current();
@@ -415,7 +416,6 @@ void *sched_loop(void *arg) {
                 ep_timeout = ev_earliest->tval - tval_before;
             }
         }
-        atom_store_int32(self->iomon_info.is_blocking, 1);    // XXX slow but safe
         int nactive = epoll_wait(self->iomon_info.epfd, self->iomon_info.events, self->iomon_info.maxevents, ep_timeout);
         atom_store_int32(self->iomon_info.is_blocking, 0);
         // XXX expire ALL available timers now. I know it's slow. 
