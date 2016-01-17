@@ -190,6 +190,8 @@ struct p7_pthread_config {
 
 struct p7_namespace_config {
     uint64_t namespace_size;
+    uint64_t rwlock_granularity;
+    uint32_t spintime;
 };
 
 struct p7_init_config {

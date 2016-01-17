@@ -792,10 +792,10 @@ int p7_iowrap_(int fd, int rdwr) {
     return ret;
 }
 
-static uint64_t p7_namespace_size = 0;
-
 int p7_preinit_namespace_size(uint64_t namespace_size) {
-    return (p7_namespace_size == 0) ? ((p7_namespace_size = namespace_size), 1) : 0;
+#define P7_NAMESPACE_SIZE   512
+    return p7_namespace_init((namespace_size) ? namespace_size : P7_NAMESPACE_SIZE);
+#undef  P7_NAMESPACE_SIZE
 }
 
 static
@@ -803,9 +803,6 @@ int p7_init_real(unsigned nthreads, void (*at_startup)(void *), void *arg) {
     if (nthreads < 1)
         nthreads = 1;
     ncarriers = nthreads;
-#define P7_NAMESPACE_SIZE   512
-    p7_namespace_init((p7_namespace_size) ? p7_namespace_size : P7_NAMESPACE_SIZE);
-#undef  P7_NAMESPACE_SIZE
     __auto_type allocator = p7_root_alloc_get_proxy();
     carriers = scraft_allocate(allocator, sizeof(struct p7_carrier *) * ncarriers);
     int carrier_idx;
@@ -835,5 +832,7 @@ int p7_init_0_1(unsigned nthreads, void (*at_startup)(void *), void *arg) {
 
 __asm__(".symver p7_init_0_4,p7_init@@LIBP7_0.4");
 int p7_init_0_4(struct p7_init_config config) {
-    return p7_preinit_namespace_size(config.namespace_config.namespace_size) && (p7_init_real(config.pthread_config.nthreads, config.pthread_config.at_startup, config.pthread_config.arg_startup) == 0);
+    return p7_preinit_namespace_size(config.namespace_config.namespace_size) 
+        && p7_namespace_guard_init(config.namespace_config.rwlock_granularity, config.namespace_config.spintime) 
+        && (p7_init_real(config.pthread_config.nthreads, config.pthread_config.at_startup, config.pthread_config.arg_startup) == 0);
 }

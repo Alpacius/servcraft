@@ -1,4 +1,5 @@
 #include    "./rwspin.h"
+#include    "./p7impl.h"
 #include    "./p7intern.h"
 
 // Not recursive. However temporarily usable.

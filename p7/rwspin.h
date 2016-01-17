@@ -1,7 +1,7 @@
 #ifndef     RWSPIN_H_
 #define     RWSPIN_H_
 
-#include    "./p7impl.h"
+#include    <stdint.h>
 
 struct p7_rwspinlock {
     uint32_t request, n_readers;

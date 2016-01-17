@@ -20,5 +20,6 @@ void *p7_name_register(void *coro, const char *name);
 void p7_name_discard(void *name_);
 void *p7_namespace_find(const char *name);
 int p7_namespace_init(uint64_t cap);
+int p7_namespace_guard_init(uint64_t granularity, uint32_t spintime);
 
 #endif      // P7_NAMESPACE_H_
