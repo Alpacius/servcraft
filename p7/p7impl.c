@@ -790,6 +790,8 @@ int p7_iowrap_(int fd, int rdwr) {
     list_add_tail(&(k.coro->lctl), &(self_view->sched_info.blocking_queue));
     self_view->sched_info.running = NULL;
     swapcontext(&(k.coro->cntx->uc), &(self_view->mgr_cntx.sched->uc));
+    if (k.coro->timedout)
+        epoll_ctl(self_view->iomon_info.epfd, EPOLL_CTL_DEL, k.fd, NULL);
     return ret;
 }
 
