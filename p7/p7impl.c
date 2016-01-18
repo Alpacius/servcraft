@@ -447,17 +447,14 @@ void *sched_loop(void *arg) {
         for (ep_itr = 0; ep_itr < nactive; ep_itr++) {
             struct p7_waitk *kwrap = (struct p7_waitk *) self->iomon_info.events[ep_itr].data.ptr;
             if (kwrap->fd != self->iomon_info.condpipe[0]) {
-                // XXX be it slower when active connections are many.
-                if (epoll_ctl(self->iomon_info.epfd, EPOLL_CTL_DEL, kwrap->fd, NULL) != -1) {
-                    if (kwrap->coro->resched == 0) {
-                        list_del(&(kwrap->coro->lctl));
-                        list_add_tail(&(kwrap->coro->lctl), &(self->sched_info.coro_queue));    // XXX 20160114: sched fix
-                        kwrap->coro->resched = 1;
-                    }
-                    if (kwrap->coro->timedout)
-                        kwrap->coro->timedout = 0;
-                    //p7_waitk_delete(kwrap);   XXX 20160103: removed persistent wait kontinuation
+                if (kwrap->coro->resched == 0) {
+                    list_del(&(kwrap->coro->lctl));
+                    list_add_tail(&(kwrap->coro->lctl), &(self->sched_info.coro_queue));    // XXX 20160114: sched fix
+                    kwrap->coro->resched = 1;
                 }
+                if (kwrap->coro->timedout)
+                    kwrap->coro->timedout = 0;
+                //p7_waitk_delete(kwrap);   XXX 20160103: removed persistent wait kontinuation
             } else {
                 void (*p7_intern_handlers[])(struct p7_intern_msg *) = {
                     NULL,   // XXX reserved0
@@ -790,8 +787,7 @@ int p7_iowrap_(int fd, int rdwr) {
     list_add_tail(&(k.coro->lctl), &(self_view->sched_info.blocking_queue));
     self_view->sched_info.running = NULL;
     swapcontext(&(k.coro->cntx->uc), &(self_view->mgr_cntx.sched->uc));
-    if (k.coro->timedout)
-        epoll_ctl(self_view->iomon_info.epfd, EPOLL_CTL_DEL, k.fd, NULL);
+    epoll_ctl(self_view->iomon_info.epfd, EPOLL_CTL_DEL, k.fd, NULL);
     return ret;
 }
 
