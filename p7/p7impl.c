@@ -686,7 +686,7 @@ int p7_send_by_entity(void *dst, struct p7_msg *msg) {
     struct p7_coro *target = dst;
     struct p7_carrier *dst_carrier;
     msg->dst = dst;
-    if (target->status & P7_CORO_STATUS_ALIVE == 0)
+    if ((target->status & P7_CORO_STATUS_ALIVE) == 0)
         return -1;
     if (target->carrier_id == self_view->carrier_id) {
         list_add_tail(&(msg->lctl), &(self_view->icc_info.localbox));
@@ -721,6 +721,7 @@ struct p7_msg *p7_recv(void) {
         list_add_tail(&(self->lctl), &(self_view->sched_info.blocking_queue));
         self_view->sched_info.running = NULL;
         swapcontext(&(self->cntx->uc), &(self_view->mgr_cntx.sched->uc));
+        __atomic_and_fetch(&(self->status), ~P7_CORO_STATUS_FLAG_RECV, __ATOMIC_SEQ_CST);
     } 
     if (!list_is_empty(&(self->mailbox))) {
         ret = self->mailbox.next;
