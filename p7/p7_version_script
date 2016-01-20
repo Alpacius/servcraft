@@ -36,6 +36,7 @@ LIBP7_0.4 {
     global:
         p7_init;
         p7_coro_create_async;
+        p7_io_notify_with_recv_;
     local:
         *;
 };

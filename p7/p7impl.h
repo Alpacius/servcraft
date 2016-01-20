@@ -45,6 +45,7 @@ struct p7_coro {
 #define     P7_CORO_STATUS_ALIVE       1
 #define     P7_CORO_STATUS_FLAG_RECV   2
 #define     P7_CORO_STATUS_FLAG_DECAY  4
+#define     P7_CORO_STATUS_IOREADY     8
 
 // XXX I see frag!
 struct p7_coro_rq {
@@ -181,6 +182,12 @@ struct p7_msg {
 #define     P7_NTIMERS_INIT     128
 
 #define     P7_ACTIVE_IDX_MAGIC 0
+
+#define     P7_IO_NOTIFY_ERROR      -1
+#define     P7_IO_NOTIFY_BASE        0
+#define     P7_IO_NOTIFY_FDRDY       1
+#define     P7_IO_NOTIFY_RCVRDY      2
+#define     P7_IO_NOTIFY_RESCHED     4
 
 struct p7_pthread_config {
     unsigned nthreads;

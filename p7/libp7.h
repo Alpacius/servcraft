@@ -79,4 +79,27 @@ struct p7_msg *p7_mailbox_extract(void);
 int p7_preinit_namespace_size(uint64_t namespace_size);
 int p7_coro_create_async(void (*entry)(void *), void *arg, size_t stack_size);
 
+int p7_io_notify_with_recv_(int fd, int rdwr);
+
+#define p7_subcribed_notification(fd_, rdwr_) \
+    (p7_io_notify_with_recv_(fd_, rdwr_)|P7_IO_NOTIFY_FDRDY)
+
+#define p7_subcribed_notification_timed(fd__, rdwr__, dt__) \
+({ \
+    uint64_t dt_ = (dt__); \
+    int fd_ = (fd__), rdwr_ = (rdwr__); \
+    struct p7_timer_event ev; \
+    p7_timed_event_immediate(&ev, dt_, NULL, NULL, NULL); \
+    int ready_status = p7_io_notify_with_recv_(fd_, rdwr_); \
+    if (ready_status != P7_IO_NOTIFY_ERROR) { \
+        if (p7_timedout_()) p7_timeout_reset(); \
+        else { \
+            p7_timer_clean__(&ev); \
+            if (ready_status & P7_IO_NOTIFY_RESCHED) ready_status |= P7_IO_NOTIFY_FDRDY; \
+        } \
+    } else \
+        p7_timer_clean__(&ev); \
+    ready_status; \
+})
+
 #endif      // LIBP7_H_

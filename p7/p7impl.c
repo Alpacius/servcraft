@@ -447,6 +447,7 @@ void *sched_loop(void *arg) {
         for (ep_itr = 0; ep_itr < nactive; ep_itr++) {
             struct p7_waitk *kwrap = (struct p7_waitk *) self->iomon_info.events[ep_itr].data.ptr;
             if (kwrap->fd != self->iomon_info.condpipe[0]) {
+                kwrap->coro->status |= P7_CORO_STATUS_IOREADY;
                 if (kwrap->coro->resched == 0) {
                     list_del(&(kwrap->coro->lctl));
                     list_add_tail(&(kwrap->coro->lctl), &(self->sched_info.coro_queue));    // XXX 20160114: sched fix
@@ -598,8 +599,6 @@ struct p7_carrier *p7_carrier_self_tl(void) {
 unsigned p7_get_ncarriers(void) {
     return ncarriers;
 }
-
-// APIs begin here
 
 struct p7_timer_event *p7_timed_event(uint64_t dt, void (*func)(void *), void *arg, void (*dtor)(void *, void (*)(void *))) {
     struct p7_timer_event *ev = p7_timer_event_new_(dt, self_view->carrier_id, NULL, NULL);
@@ -788,7 +787,39 @@ int p7_iowrap_(int fd, int rdwr) {
     self_view->sched_info.running = NULL;
     swapcontext(&(k.coro->cntx->uc), &(self_view->mgr_cntx.sched->uc));
     epoll_ctl(self_view->iomon_info.epfd, EPOLL_CTL_DEL, k.fd, NULL);
-    return ret;
+    return (k.coro->status & P7_CORO_STATUS_IOREADY) ? ((k.coro->status &= ~P7_CORO_STATUS_IOREADY), 1) : 0;
+}
+
+static
+struct p7_waitk *p7_waitk_new(struct p7_waitk *k, int fd, int rdwr) {
+    k->from = self_view->carrier_id;
+    k->coro = self_view->sched_info.running;
+    k->fd = fd;
+    (k->event.data.ptr = k), (k->event.events = EPOLLONESHOT);
+    ((rdwr & P7_IOMODE_READ) && (k->event.events |= EPOLLIN)), ((rdwr & P7_IOMODE_WRITE) && (k->event.events |= EPOLLOUT));
+    (rdwr & P7_IOCTL_ET) && (k->event.events |= EPOLLET);
+    (rdwr & P7_IOMODE_ERROR) && (k->event.events |= EPOLLERR); // useless
+    return k;
+}
+
+static
+void p7_blocking_point(struct p7_coro *coro) {
+    list_del(&(coro->lctl));
+    list_add_tail(&(coro->lctl), &(self_view->sched_info.blocking_queue));
+    self_view->sched_info.running = NULL;
+    swapcontext(&(coro->cntx->uc), &(self_view->mgr_cntx.sched->uc));
+}
+
+int p7_io_notify_with_recv_(int fd, int rdwr) {
+    struct p7_coro *self = self_view->sched_info.running;
+    if (!list_is_empty(&(self->mailbox)))
+        return P7_IO_NOTIFY_RCVRDY;
+    __atomic_or_fetch(&(self->status), P7_CORO_STATUS_FLAG_RECV, __ATOMIC_SEQ_CST);
+    int io_is_ready = 0;
+    if ((io_is_ready = p7_iowrap_(fd, rdwr)) == -1)
+        return P7_IOMODE_ERROR;
+    __atomic_and_fetch(&(self->status), ~P7_CORO_STATUS_FLAG_RECV, __ATOMIC_SEQ_CST);
+    return P7_IO_NOTIFY_BASE|(P7_IO_NOTIFY_RCVRDY * !list_is_empty(&(self->mailbox)))|(P7_IO_NOTIFY_RESCHED * io_is_ready);
 }
 
 int p7_preinit_namespace_size(uint64_t namespace_size) {
