@@ -866,3 +866,7 @@ int p7_init_0_4(struct p7_init_config config) {
         && p7_namespace_guard_init(config.namespace_config.rwlock_granularity, config.namespace_config.spintime) 
         && (p7_init_real(config.pthread_config.nthreads, config.pthread_config.at_startup, config.pthread_config.arg_startup) == 0);
 }
+
+uint32_t p7_get_carrier_id(void) {
+    return self_view->carrier_id;
+}

@@ -102,4 +102,6 @@ int p7_io_notify_with_recv_(int fd, int rdwr);
     ready_status; \
 })
 
+uint32_t p7_get_carrier_id(void);
+
 #endif      // LIBP7_H_
