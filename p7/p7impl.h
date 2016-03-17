@@ -35,6 +35,7 @@ struct p7_coro {
     unsigned carrier_id;
     unsigned timedout, resched;
     uint32_t status;
+    uint64_t decay;
     struct p7_coro_cntx *cntx;
     struct p7_coro *following, *trapper;
     void (*mailbox_cleanup)(void *);
@@ -46,6 +47,7 @@ struct p7_coro {
 #define     P7_CORO_STATUS_FLAG_RECV   2
 #define     P7_CORO_STATUS_FLAG_DECAY  4
 #define     P7_CORO_STATUS_IOREADY     8
+
 
 // XXX I see frag!
 struct p7_coro_rq {

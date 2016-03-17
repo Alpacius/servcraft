@@ -65,6 +65,7 @@ struct p7_coro *p7_coro_new_(void (*entry)(void *), void *arg, size_t stack_size
             (coro->func_info.entry = entry), (coro->func_info.arg = arg);
             coro->timedout = coro->resched = 0;
             coro->status = P7_CORO_STATUS_ALIVE;
+            coro->decay = 0;
             coro->trapper = NULL;
             (coro->mailbox_cleanup = NULL), (coro->mailbox_cleanup_arg = NULL);
             init_list_head(&(coro->mailbox));
@@ -103,6 +104,7 @@ struct p7_coro *p7_coro_new(void (*entry)(void *), void *arg, size_t stack_size,
             coro->cntx = p7_coro_cntx_new(entry, arg, stack_size, limbo);
         }
         coro->status = P7_CORO_STATUS_ALIVE;
+        coro->decay = 0;
         coro->trapper = NULL;
         coro->timedout = coro->resched = 0;
         (coro->mailbox_cleanup = NULL), (coro->mailbox_cleanup_arg = NULL);
@@ -522,7 +524,8 @@ void *sched_loop(void *arg) {
         list_foreach_remove(p, h, t) {
             list_del(t);
             struct p7_coro *coro_dying = container_of(t, struct p7_coro, lctl);
-            if ((__atomic_load_n(&(coro_dying->status), __ATOMIC_SEQ_CST) & P7_CORO_STATUS_FLAG_DECAY) == 0)
+            //if ((__atomic_load_n(&(coro_dying->status), __ATOMIC_SEQ_CST) & P7_CORO_STATUS_FLAG_DECAY) == 0)
+            if (__atomic_load_n(&(coro_dying->decay), __ATOMIC_SEQ_CST) == 0)
                 p7_coro_delete(coro_dying);
         }
 
@@ -730,9 +733,11 @@ struct p7_msg *p7_recv(void) {
 int p7_send_by_name(const char *name, struct p7_msg *msg) {
     struct p7_coro *dst = p7_namespace_find(name);
     if (dst != NULL) {
-        __atomic_or_fetch(&(dst->status), P7_CORO_STATUS_FLAG_DECAY, __ATOMIC_SEQ_CST);
+        //__atomic_or_fetch(&(dst->status), P7_CORO_STATUS_FLAG_DECAY, __ATOMIC_SEQ_CST);
+        __atomic_add_fetch(&(dst->decay), 1, __ATOMIC_SEQ_CST);
         int ret = p7_send_by_entity(dst, msg);
-        __atomic_and_fetch(&(dst->status), ~P7_CORO_STATUS_FLAG_DECAY, __ATOMIC_SEQ_CST);
+        //__atomic_and_fetch(&(dst->status), ~P7_CORO_STATUS_FLAG_DECAY, __ATOMIC_SEQ_CST);
+        __atomic_sub_fetch(&(dst->decay), 1, __ATOMIC_SEQ_CST);
     } else
         return -1;
 }
