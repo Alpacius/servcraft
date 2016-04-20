@@ -41,7 +41,7 @@ do { \
     struct p7_timer_event ev; \
     p7_timed_event_immediate(&ev, dt_, NULL, NULL, NULL); \
     p7_iowrap_(fd_, rdwr_); \
-    int ret_; \
+    ssize_t ret_; \
     if (p7_timedout_()) { \
         ret_ = -2; \
         p7_timeout_reset(); \
@@ -50,7 +50,7 @@ do { \
         p7_timer_clean__(&ev); \
         ret_ = fn_(fd_, __VA_ARGS__); \
     } \
-    (volatile int) ret_; \
+    (volatile ssize_t) ret_; \
 })
 
 void p7_send_by_entity(void *dst, struct p7_msg *msg);
