@@ -875,3 +875,7 @@ int p7_init_0_4(struct p7_init_config config) {
 uint32_t p7_get_carrier_id(void) {
     return self_view->carrier_id;
 }
+
+void *p7_coro_self(void) {
+    return self_view->sched_info.running;
+}
