@@ -38,6 +38,9 @@ LIBP7_0.4 {
         p7_coro_create_async;
         p7_io_notify_with_recv_;
         p7_get_carrier_id;
+        p7_coro_set_cleanup;
+        p7_coro_get_waiting_fd;
+        p7_finalize;
     local:
         *;
 };

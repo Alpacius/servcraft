@@ -105,4 +105,8 @@ int p7_io_notify_with_recv_(int fd, int rdwr);
 uint32_t p7_get_carrier_id(void);
 void *p7_coro_self(void);
 
+void p7_coro_set_cleanup(void (*cleanup)(void *, void *), void *arg);
+int p7_coro_get_waiting_fd(void *self_ptr);
+void p7_finalize(void);
+
 #endif      // LIBP7_H_

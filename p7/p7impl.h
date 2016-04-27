@@ -40,6 +40,11 @@ struct p7_coro {
     struct p7_coro *following, *trapper;
     void (*mailbox_cleanup)(void *);
     void *mailbox_cleanup_arg;
+    int fd_waiting;
+    struct {
+        void *arg;
+        void (*cleanup)(void *, void *);
+    } cleanup_info;
 };
 
 #define     P7_CORO_STATUS_DYING       0
@@ -119,6 +124,7 @@ void p7_double_queue_init(struct p7_double_queue *q) {
 struct p7_carrier {
     pthread_t tid;
     unsigned carrier_id;
+    int *alive;
     struct {
         list_ctl_t coro_queue, blocking_queue, dying_queue;
         list_ctl_t rq_pool_tl, coro_pool_tl, waitk_pool_tl;

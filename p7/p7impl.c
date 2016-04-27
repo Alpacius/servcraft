@@ -29,6 +29,8 @@ static __thread struct p7_carrier *self_view = NULL;
 
 static uint8_t active_queue_at[256] = { [0] = 0, [255] = 1 };
 
+static int p7_system_alive = 1;
+
 static
 struct p7_coro_cntx *p7_coro_cntx_new_(void (*entry)(void *), void *arg, size_t stack_size, struct p7_limbo *limbo) {
     __auto_type allocator = p7_root_alloc_get_proxy();
@@ -67,6 +69,9 @@ struct p7_coro *p7_coro_new_(void (*entry)(void *), void *arg, size_t stack_size
             coro->status = P7_CORO_STATUS_ALIVE;
             coro->decay = 0;
             coro->trapper = NULL;
+            coro->fd_waiting = -1;
+            coro->cleanup_info.arg = NULL;
+            coro->cleanup_info.cleanup = NULL;
             (coro->mailbox_cleanup = NULL), (coro->mailbox_cleanup_arg = NULL);
             init_list_head(&(coro->mailbox));
         }
@@ -106,6 +111,9 @@ struct p7_coro *p7_coro_new(void (*entry)(void *), void *arg, size_t stack_size,
         coro->status = P7_CORO_STATUS_ALIVE;
         coro->decay = 0;
         coro->trapper = NULL;
+        coro->fd_waiting = -1;
+        coro->cleanup_info.arg = NULL;
+        coro->cleanup_info.cleanup = NULL;
         coro->timedout = coro->resched = 0;
         (coro->mailbox_cleanup = NULL), (coro->mailbox_cleanup_arg = NULL);
         return coro;
@@ -190,6 +198,7 @@ struct p7_carrier *p7_carrier_prepare(unsigned carrier_id, unsigned nevents, voi
         for (idx = 0; idx < carrier->icc_info.nmailboxes; idx++)
             p7_double_queue_init(&(carrier->icc_info.mailboxes[idx]));
         init_list_head(&(carrier->icc_info.localbox));
+        carrier->alive = &p7_system_alive;
     } else {
 #define free_safe(_p_) ({ do { if ((_p_) != NULL) local_free(_p_); } while (0); 0; })
         free_safe(carrier), free_safe(evqueue), free_safe(limbo);
@@ -406,7 +415,7 @@ void *sched_loop(void *arg) {
     if (self->startup.at_startup != NULL)
         self->startup.at_startup(self->startup.arg_startup);
 
-    while (1) {
+    while (__atomic_load_n(self->alive, __ATOMIC_SEQ_CST)) {
         pthread_spin_lock(&(self->sched_info.rq_queue_lock));
         int ep_timeout = (list_is_empty(&(self->sched_info.coro_queue)) && list_is_empty(&(self->sched_info.rq_queues[0])) && list_is_empty(&(self->sched_info.rq_queues[1]))) ? -1 : 0;
         atom_store_int32(self->iomon_info.is_blocking, 1);    // XXX slow but safe
@@ -567,6 +576,8 @@ int coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
     //atom_add_uint32(next_carrier);
     uint32_t next_carrier_id = __atomic_fetch_add(&next_carrier, 1, __ATOMIC_SEQ_CST);
     struct p7_carrier *next_load = carriers[next_carrier_id % ncarriers];
+    if (!__atomic_load_n(next_load->alive, __ATOMIC_SEQ_CST))
+        return -1;
     if (next_load->carrier_id != self_view->carrier_id) {
         struct p7_coro_rq *rq = p7_coro_rq_new(entry, arg, stack_size);
         if (rq != NULL) {
@@ -788,9 +799,11 @@ int p7_iowrap_(int fd, int rdwr) {
         return -1;
     }
     list_del(&(k.coro->lctl));
+    k.coro->fd_waiting = fd;
     list_add_tail(&(k.coro->lctl), &(self_view->sched_info.blocking_queue));
     self_view->sched_info.running = NULL;
     swapcontext(&(k.coro->cntx->uc), &(self_view->mgr_cntx.sched->uc));
+    k.coro->fd_waiting = -1;
     epoll_ctl(self_view->iomon_info.epfd, EPOLL_CTL_DEL, k.fd, NULL);
     return (k.coro->status & P7_CORO_STATUS_IOREADY) ? ((k.coro->status &= ~P7_CORO_STATUS_IOREADY), 1) : 0;
 }
@@ -878,4 +891,73 @@ uint32_t p7_get_carrier_id(void) {
 
 void *p7_coro_self(void) {
     return self_view->sched_info.running;
+}
+
+void p7_coro_set_cleanup(void (*cleanup)(void *, void *), void *arg) {
+    struct p7_coro *self = self_view->sched_info.running;
+    (self->cleanup_info.cleanup = cleanup), (self->cleanup_info.arg = arg);
+}
+
+int p7_coro_get_waiting_fd(void *self_ptr) {
+    return ((struct p7_coro *) self_ptr)->fd_waiting;
+}
+
+void p7_finalize(void) {
+    uint32_t carrier_index;
+#define coro_sig_go_die(iterator_) \
+    do { \
+        struct p7_coro *coro = container_of(iterator_, struct p7_coro, lctl); \
+        if (coro->cleanup_info.cleanup) \
+            coro->cleanup_info.cleanup(coro, coro->cleanup_info.arg); \
+    } while (0)
+
+#define message_destroy(iterator_, temporary_) \
+    do { \
+        struct p7_msg *msg = container_of(iterator_, struct p7_msg, lctl); \
+        list_del(&(msg->lctl)); \
+        if (msg->dtor) \
+            msg->dtor(msg, msg->dtor_arg); \
+    } while (0)
+
+    // phase 1: coroutine sig-go-die handler invocation
+    for (carrier_index = 0; carrier_index < ncarriers; carrier_index++) {
+        struct p7_carrier *carrier = carriers[carrier_index];
+        list_ctl_t *p;
+        list_foreach(p, &(carrier->sched_info.coro_queue))
+            coro_sig_go_die(p);
+        list_foreach(p, &(carrier->sched_info.blocking_queue))
+            coro_sig_go_die(p);
+    }
+
+    // phase 2: message routes cleanup
+    for (carrier_index = 0; carrier_index < ncarriers; carrier_index++) {
+        struct p7_carrier *carrier = carriers[carrier_index];
+        uint32_t mailbox_index;
+        for (mailbox_index = 0; mailbox_index < carrier->icc_info.nmailboxes; mailbox_index++) {
+            list_ctl_t *p, *t;
+            list_foreach_remove(p, &(carrier->icc_info.mailboxes[mailbox_index].queue[0]), t)
+                message_destroy(p, t);
+            list_foreach_remove(p, &(carrier->icc_info.mailboxes[mailbox_index].queue[1]), t)
+                message_destroy(p, t);
+        }
+        {
+            list_ctl_t *p, *t;
+            list_foreach_remove(p, &(carrier->icc_info.localbox), t)
+                message_destroy(p, t);
+        }
+    }
+
+    // phase 3: file system cleanup
+    for (carrier_index = 0; carrier_index < ncarriers; carrier_index++) {
+        struct p7_carrier *carrier = carriers[carrier_index];
+        close(carrier->iomon_info.epfd);
+        close(carrier->iomon_info.condpipe[0]);
+        close(carrier->iomon_info.condpipe[1]);
+    }
+
+    // XXX do not release any memory from root allocator - it will be destroyed later
+    // we're done here
+
+#undef coro_sig_go_die
+#undef message_destroy
 }
