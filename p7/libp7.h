@@ -109,4 +109,6 @@ void p7_coro_set_cleanup(void (*cleanup)(void *, void *), void *arg);
 int p7_coro_get_waiting_fd(void *self_ptr);
 void p7_finalize(void);
 
+void p7_blocking_point_self(void);
+
 #endif      // LIBP7_H_

@@ -828,6 +828,10 @@ void p7_blocking_point(struct p7_coro *coro) {
     swapcontext(&(coro->cntx->uc), &(self_view->mgr_cntx.sched->uc));
 }
 
+void p7_blocking_point_self(void) {
+    p7_blocking_point(self_view->sched_info.running);
+}
+
 int p7_io_notify_with_recv_(int fd, int rdwr) {
     struct p7_coro *self = self_view->sched_info.running;
     if (!list_is_empty(&(self->mailbox)))

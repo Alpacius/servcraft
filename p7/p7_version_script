@@ -41,6 +41,7 @@ LIBP7_0.4 {
         p7_coro_set_cleanup;
         p7_coro_get_waiting_fd;
         p7_finalize;
+        p7_blocking_point_self;
     local:
         *;
 };
