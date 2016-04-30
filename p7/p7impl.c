@@ -820,7 +820,7 @@ struct p7_waitk *p7_waitk_new(struct p7_waitk *k, int fd, int rdwr) {
     return k;
 }
 
-static
+static inline
 void p7_blocking_point(struct p7_coro *coro) {
     list_del(&(coro->lctl));
     list_add_tail(&(coro->lctl), &(self_view->sched_info.blocking_queue));
