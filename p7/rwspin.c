@@ -11,7 +11,7 @@ void p7_rwspinlock_init(struct p7_rwspinlock *rwspin, uint32_t spintime) {
 }
 
 #ifdef  P7_USE_INTEL_PAUSE
-#define cpu_relax   __asm__("pause")
+#define cpu_relax   __builtin_ia32_pause()
 #else
 #define cpu_relax
 #endif
