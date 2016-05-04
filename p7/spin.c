@@ -68,7 +68,7 @@ struct p7_spinlock *p7_spinlock_create(uint32_t spintime) {
 
 // since 0.2.0
 void p7_spinlock_init(struct p7_spinlock *spin, uint32_t spintime) {
-    __atomic_store_n(&(spin->lock), 0, __ATOMIC_SEQ_CST);
+    __atomic_store_n(&(spin->lock), 0, __ATOMIC_RELEASE);
     (spin->spintime = spintime), (spin->from = p7_carrier_self_tl()->carrier_id), (spin->is_free = P7_SPINLOCK_LOCAL);
 }
 
@@ -134,6 +134,6 @@ void p7_spinlock_lock_0_2(struct p7_spinlock *spin) {
 }
 
 void p7_spinlock_unlock(struct p7_spinlock *spin) {
-    __atomic_store_n(&(spin->lock), 0, __ATOMIC_SEQ_CST);
+    __atomic_store_n(&(spin->lock), 0, __ATOMIC_RELEASE);
     p7_coro_yield();
 }
