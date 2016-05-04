@@ -464,8 +464,8 @@ void *sched_loop(void *arg) {
                     list_add_tail(&(kwrap->coro->lctl), &(self->sched_info.coro_queue));    // XXX 20160114: sched fix
                     kwrap->coro->resched = 1;
                 }
-                if (kwrap->coro->timedout)
-                    kwrap->coro->timedout = 0;
+                //if (kwrap->coro->timedout)
+                    //kwrap->coro->timedout = 0;
                 //p7_waitk_delete(kwrap);   XXX 20160103: removed persistent wait kontinuation
             } else {
                 void (*p7_intern_handlers[])(struct p7_intern_msg *) = {
