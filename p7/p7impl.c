@@ -284,7 +284,7 @@ struct p7_timer_event *p7_timer_event_new_(uint64_t dt, unsigned from, struct p7
     __auto_type allocator = p7_root_alloc_get_proxy();
     struct p7_timer_event *ev = scraft_allocate(allocator, sizeof(struct p7_timer_event));
     if (ev != NULL)
-        (ev->tval = get_timeval_by_diff(dt)), (ev->from = from), (ev->coro = coro), (ev->condref = cond), (ev->rbtctl.key_ref = &(ev->tval));
+        (ev->tval = get_timeval_by_diff(dt)), (ev->from = from), (ev->coro = coro), (ev->condref = cond), (ev->rbtctl.key_ref = &(ev->tval)), (ev->triggered = 0);
     return ev;
 }
 
@@ -451,6 +451,7 @@ void *sched_loop(void *arg) {
                 if (ev_timer_expired->condref != NULL) {
                     // TODO condref
                 }
+                ev_timer_expired->triggered = 1;
                 //p7_timer_event_del(ev_timer_expired);
             }
         }
@@ -633,6 +634,7 @@ struct p7_timer_event *p7_timed_event_immediate(struct p7_timer_event *ev, uint6
     ev->from = self_view->carrier_id;
     ev->coro = self_view->sched_info.running;
     ev->condref = NULL;
+    ev->triggered = 0;
     ev->rbtctl.key_ref = &(ev->tval);
     p7_timer_event_hook(ev, func, arg, dtor);
     timer_add_event(ev, &(self_view->sched_info.timer_queue));

@@ -42,9 +42,8 @@ do { \
     p7_timed_event_immediate(&ev, dt_, NULL, NULL, NULL); \
     p7_iowrap_(fd_, rdwr_); \
     ssize_t ret_; \
-    if (p7_timedout_()) { \
+    if (ev.triggered) { \
         ret_ = -2; \
-        p7_timeout_reset(); \
     } \
     else { \
         p7_timer_clean__(&ev); \
@@ -64,9 +63,7 @@ void p7_coro_discard_name(void *name_handle);
     struct p7_timer_event ev; \
     p7_timed_event_immediate(&ev, dt_, NULL, NULL, NULL); \
     struct p7_msg *msg_ = p7_recv(); \
-    if (p7_timedout_()) \
-        p7_timeout_reset(); \
-    else \
+    if (!ev.triggered) \
         p7_timer_clean__(&ev); \
     msg_; \
 })
@@ -92,13 +89,11 @@ int p7_io_notify_with_recv_(int fd, int rdwr);
     p7_timed_event_immediate(&ev, dt_, NULL, NULL, NULL); \
     int ready_status = p7_io_notify_with_recv_(fd_, rdwr_); \
     if (ready_status != P7_IO_NOTIFY_ERROR) { \
-        if (p7_timedout_()) p7_timeout_reset(); \
-        else { \
-            p7_timer_clean__(&ev); \
-            if (ready_status & P7_IO_NOTIFY_RESCHED) ready_status |= P7_IO_NOTIFY_FDRDY; \
-        } \
-    } else \
+        if (ready_status & P7_IO_NOTIFY_RESCHED) ready_status |= P7_IO_NOTIFY_FDRDY; \
+    } \
+    if (!ev.triggered) {\
         p7_timer_clean__(&ev); \
+    } \
     ready_status; \
 })
 

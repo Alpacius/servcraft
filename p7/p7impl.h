@@ -91,6 +91,7 @@ struct p7_cond_event;
 struct p7_timer_event {
     uint64_t tval;
     unsigned from;
+    int triggered;
     struct p7_coro *coro;
     struct p7_cond_event *condref;
     struct scraft_rbtree_node rbtctl;
