@@ -575,7 +575,7 @@ void p7_coro_yield(void);
 static
 int coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
     //atom_add_uint32(next_carrier);
-    uint32_t next_carrier_id = __atomic_fetch_add(&next_carrier, 1, __ATOMIC_SEQ_CST);
+    uint32_t next_carrier_id = __atomic_add_fetch(&next_carrier, 1, __ATOMIC_SEQ_CST);
     struct p7_carrier *next_load = carriers[next_carrier_id % ncarriers];
     if (!__atomic_load_n(next_load->alive, __ATOMIC_SEQ_CST))
         return -1;
