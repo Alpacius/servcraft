@@ -7,7 +7,7 @@ use lib '..';
 use Servbuild::Makemaker::C;
 
 %Servbuild::Makemaker::C::assignments_overwritten = (
-    CFLAGS => '-fPIC -c -O2 -g',
+    CFLAGS => '-fPIC -c -O2 -g -std=gnu11',
     LDFLAGS => '-shared --version-script p7_version_script -lpthread',
     TARGET => 'libp7.so.0.4.3',
 );
