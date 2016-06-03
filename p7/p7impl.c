@@ -699,7 +699,7 @@ int p7_send_by_entity(void *dst, struct p7_msg *msg) {
     struct p7_carrier *dst_carrier;
     msg->dst = dst;
     if ((target->status & P7_CORO_STATUS_ALIVE) == 0)
-        return -1;
+        return -2;
     if (target->carrier_id == self_view->carrier_id) {
         list_add_tail(&(msg->lctl), &(self_view->icc_info.localbox));
         dst_carrier = self_view;

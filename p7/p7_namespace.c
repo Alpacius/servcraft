@@ -28,7 +28,7 @@ int p7_namespace_guard_init(uint64_t granularity, uint32_t spintime) {
 static inline
 struct p7_namebind *p7_namebind_new(const char *name, void *coro) {
     __auto_type allocator = p7_root_alloc_get_proxy();
-    uint32_t namelen = strlen(name);
+    uint32_t namelen = strlen(name) + 1;
     struct p7_namebind *namerec = scraft_allocate(allocator, sizeof(struct p7_namebind) + sizeof(char) * namelen);
     if (likely(namerec != NULL)) {
         (namerec->namelen = namelen), (namerec->coro = coro), (namerec->name_const = NULL);
