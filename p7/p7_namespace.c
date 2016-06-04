@@ -37,7 +37,11 @@ struct p7_namebind *p7_namebind_new(const char *name, void *coro) {
     return namerec;
 }
 
+void *p7_namespace_find(const char *name);
+
 void *p7_name_register(void *coro, const char *name) {
+    if (p7_namespace_find(name))
+        return NULL;
     struct p7_namebind *namerec = p7_namebind_new(name, coro);
     if (likely(namerec != NULL)) {
         uint64_t lockidx = (p7_namebind_hashfunc(&(namerec->keyctl)) % namespace_size) / guard->granularity;
