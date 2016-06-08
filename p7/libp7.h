@@ -79,7 +79,14 @@ int p7_coro_create_async(void (*entry)(void *), void *arg, size_t stack_size);
 int p7_io_notify_with_recv_(int fd, int rdwr);
 
 #define p7_subcribed_notification(fd_, rdwr_) \
-    (p7_io_notify_with_recv_(fd_, rdwr_)|P7_IO_NOTIFY_FDRDY)
+({ \
+    int ready_status = p7_io_notify_with_recv_(fd_, rdwr_); \
+    if (ready_status != P7_IO_NOTIFY_ERROR) { \
+        if (ready_status & P7_IO_NOTIFY_RESCHED) ready_status |= P7_IO_NOTIFY_FDRDY; \
+    } \
+    ready_status; \
+})
+
 
 #define p7_subcribed_notification_timed(fd__, rdwr__, dt__) \
 ({ \
