@@ -9,3 +9,4 @@ struct scraft_model_alloc cat2_(ROOT_ALLOC_PREFIX, _root_alloc_get_proxy(void));
 struct scraft_model_alloc * cat2_(ROOT_ALLOC_PREFIX, _root_alloc_get_allocator(void));
 struct scraft_model_alloc * cat2_(ROOT_ALLOC_PREFIX, _root_alloc_ruin(void));
 
+#undef      ROOT_ALLOC_PREFIX
