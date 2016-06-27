@@ -44,7 +44,7 @@
 
 #define    offset_of(type, member) ((size_t) &((type *) 0)->member)
 #define    container_of(ptr, type, member) ({ \
-     const typeof(((type *) 0)->member) *__mptr = ptr; \
+     const typeof(((type *) 0)->member) *__mptr = (ptr); \
      (type *) ((char *) __mptr - offset_of(type, member)); })
 
 #endif      // MISCUTILS_H_
