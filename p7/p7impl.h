@@ -29,6 +29,9 @@ struct p7_coro_cntx {
 struct p7_coro {
     list_ctl_t lctl, mailbox;
     struct {
+        unsigned stack_size;
+    } cntx_info;
+    struct {
         void *arg;
         void (*entry)(void *);
     } func_info;
@@ -47,13 +50,14 @@ struct p7_coro {
     } cleanup_info;
 };
 
-#define     P7_CORO_STATUS_DYING       0
-#define     P7_CORO_STATUS_ALIVE       1
-#define     P7_CORO_STATUS_SPAWNING    2
+#define     P7_CORO_STATUS_DYING            0
+#define     P7_CORO_STATUS_ALIVE            1
 
-#define     P7_CORO_STATUS_FLAG_RECV   16
-#define     P7_CORO_STATUS_FLAG_DECAY  32
-#define     P7_CORO_STATUS_IOREADY     64
+#define     P7_CORO_STATUS_FLAG_SPAWNING    8
+#define     P7_CORO_STATUS_FLAG_RECV        16
+#define     P7_CORO_STATUS_FLAG_DECAY       32
+#define     P7_CORO_STATUS_IOREADY          64
+#define     P7_CORO_STATUS_FLAG_MAIN        128
 
 
 // XXX I see frag!

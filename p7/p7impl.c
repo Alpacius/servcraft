@@ -55,33 +55,56 @@ void p7_coro_cntx_delete_(struct p7_coro_cntx *cntx) {
     scraft_deallocate(allocator, cntx);
 }
 
+#include    <stdio.h>
+
+static
+int p7_coro_activate(struct p7_coro *coro, struct p7_limbo *limbo) {
+    int ret = 1;
+    if (coro->status & P7_CORO_STATUS_FLAG_SPAWNING) {
+        if (coro->status & P7_CORO_STATUS_FLAG_MAIN) {
+            coro->status &= ~P7_CORO_STATUS_FLAG_SPAWNING;
+            return ret;
+        }
+        if (coro->cntx == NULL)
+            coro->cntx = p7_coro_cntx_new_(coro->func_info.entry, coro->func_info.arg, coro->cntx_info.stack_size, limbo);
+        if (coro->cntx != NULL) {
+            coro->status &= ~P7_CORO_STATUS_FLAG_SPAWNING;
+        } else {
+            coro->status = P7_CORO_STATUS_DYING;
+            ret = 0;
+        }
+    }
+    return ret;
+}
+
 static
 struct p7_coro *p7_coro_new_(void (*entry)(void *), void *arg, size_t stack_size, unsigned carrier_id, struct p7_limbo *limbo) {
     struct p7_coro *coro = NULL;
-    struct p7_coro_cntx *cntx = p7_coro_cntx_new_(entry, arg, stack_size, limbo);
-    if (cntx != NULL) {
-        __auto_type allocator = p7_root_alloc_get_proxy();
-        coro = scraft_allocate(allocator, (sizeof(struct p7_coro)));
-        if (coro != NULL) {
-            (coro->carrier_id = carrier_id), (coro->cntx = cntx), (coro->following = NULL);
-            (coro->func_info.entry = entry), (coro->func_info.arg = arg);
-            coro->timedout = coro->resched = 0;
-            coro->status = P7_CORO_STATUS_ALIVE;
-            coro->decay = 0;
-            coro->trapper = NULL;
-            coro->fd_waiting = -1;
-            coro->cleanup_info.arg = NULL;
-            coro->cleanup_info.cleanup = NULL;
-            (coro->mailbox_cleanup = NULL), (coro->mailbox_cleanup_arg = NULL);
-            init_list_head(&(coro->mailbox));
-        }
+    //struct p7_coro_cntx *cntx = p7_coro_cntx_new_(entry, arg, stack_size, limbo);
+    struct p7_coro_cntx *cntx = NULL;
+    __auto_type allocator = p7_root_alloc_get_proxy();
+    coro = scraft_allocate(allocator, (sizeof(struct p7_coro)));
+    if (coro != NULL) {
+        (coro->carrier_id = carrier_id), (coro->cntx = cntx), (coro->following = NULL);
+        (coro->func_info.entry = entry), (coro->func_info.arg = arg);
+        coro->timedout = coro->resched = 0;
+        coro->status = P7_CORO_STATUS_ALIVE|P7_CORO_STATUS_FLAG_SPAWNING;
+        coro->cntx_info.stack_size = stack_size;
+        coro->decay = 0;
+        coro->trapper = NULL;
+        coro->fd_waiting = -1;
+        coro->cleanup_info.arg = NULL;
+        coro->cleanup_info.cleanup = NULL;
+        (coro->mailbox_cleanup = NULL), (coro->mailbox_cleanup_arg = NULL);
+        init_list_head(&(coro->mailbox));
     }
     return coro;
 }
 
 static
 void p7_coro_delete_(struct p7_coro *coro) {
-    p7_coro_cntx_delete_(coro->cntx);
+    if (coro->cntx != NULL)
+        p7_coro_cntx_delete_(coro->cntx);
     __auto_type allocator = p7_root_alloc_get_proxy();
     scraft_deallocate(allocator, coro);
 }
@@ -106,9 +129,11 @@ struct p7_coro *p7_coro_new(void (*entry)(void *), void *arg, size_t stack_size,
             makecontext(&(coro->cntx->uc), (void (*)()) entry, 1, arg);
         } else {
             p7_coro_cntx_delete_(coro->cntx);
-            coro->cntx = p7_coro_cntx_new(entry, arg, stack_size, limbo);
+            //coro->cntx = p7_coro_cntx_new(entry, arg, stack_size, limbo);
+            coro->cntx = NULL;
         }
-        coro->status = P7_CORO_STATUS_ALIVE;
+        coro->cntx_info.stack_size = stack_size;
+        coro->status = P7_CORO_STATUS_ALIVE|P7_CORO_STATUS_FLAG_SPAWNING;
         coro->decay = 0;
         coro->trapper = NULL;
         coro->fd_waiting = -1;
@@ -126,7 +151,6 @@ static
 void p7_coro_delete(struct p7_coro *coro) {
     coro->status = P7_CORO_STATUS_DYING;
     coro->trapper = NULL;
-    // TODO name cancellation
     if (self_view->sched_info.coro_pool_size < self_view->sched_info.coro_pool_cap) {
         self_view->sched_info.coro_pool_size++;
         coro->following = NULL;
@@ -553,6 +577,7 @@ void *sched_loop(void *arg) {
             list_ctl_t *next_coro = self->sched_info.coro_queue.next;
             self->sched_info.running = container_of(next_coro, struct p7_coro, lctl);
             self->sched_info.running->resched = 0;
+            p7_coro_activate(self->sched_info.running, self->mgr_cntx.limbo);
             swapcontext(&(self->mgr_cntx.sched->uc), &(self->sched_info.running->cntx->uc));
         }
     }
@@ -865,6 +890,8 @@ int p7_init_real(unsigned nthreads, void (*at_startup)(void *), void *arg) {
     for (carrier_idx = 1; carrier_idx < ncarriers; carrier_idx++)
         carriers[carrier_idx] = p7_carrier_prepare(carrier_idx, 1024, limbo_loop, NULL, NULL);
     struct p7_coro *main_ctlflow = p7_coro_new(NULL, NULL, 0, 0, NULL);
+    main_ctlflow->status |= P7_CORO_STATUS_FLAG_MAIN;
+    main_ctlflow->cntx = p7_coro_cntx_new_(main_ctlflow->func_info.entry, main_ctlflow->func_info.arg, main_ctlflow->cntx_info.stack_size, NULL);
     getcontext(&(main_ctlflow->cntx->uc));
     list_add_tail(&(main_ctlflow->lctl), &(carriers[0]->sched_info.coro_queue));
     carriers[0]->sched_info.running = main_ctlflow;
