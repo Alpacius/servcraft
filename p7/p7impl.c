@@ -566,7 +566,7 @@ void *sched_loop(void *arg) {
 
 // NOTE this wrapper is used for the main thread, which needs a scheduler but holds no independent pthread
 static
-void sched_loop_cntx_wraper(void *unused_arg) {
+void sched_loop_cntx_wrapper(void *unused_arg) {
     sched_loop(carriers[0]);
 }
 
@@ -860,7 +860,7 @@ int p7_init_real(unsigned nthreads, void (*at_startup)(void *), void *arg) {
     __auto_type allocator = p7_root_alloc_get_proxy();
     carriers = scraft_allocate(allocator, sizeof(struct p7_carrier *) * ncarriers);
     int carrier_idx;
-    carriers[0] = p7_carrier_prepare(0, 1024, limbo_loop, sched_loop_cntx_wraper, NULL);
+    carriers[0] = p7_carrier_prepare(0, 1024, limbo_loop, sched_loop_cntx_wrapper, NULL);
     self_view = carriers[0];
     for (carrier_idx = 1; carrier_idx < ncarriers; carrier_idx++)
         carriers[carrier_idx] = p7_carrier_prepare(carrier_idx, 1024, limbo_loop, NULL, NULL);
