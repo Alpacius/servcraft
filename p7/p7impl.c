@@ -55,8 +55,6 @@ void p7_coro_cntx_delete_(struct p7_coro_cntx *cntx) {
     scraft_deallocate(allocator, cntx);
 }
 
-#include    <stdio.h>
-
 static
 int p7_coro_activate(struct p7_coro *coro, struct p7_limbo *limbo) {
     int ret = 1;
