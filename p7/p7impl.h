@@ -15,7 +15,6 @@
 #include    <sys/uio.h>
 #include    "../include/util_list.h"
 #include    "../util/scraft_rbt_ifce.h"
-#include    "util_heap.h"
 
 #include    <assert.h>
 
@@ -142,7 +141,6 @@ struct p7_carrier {
         pthread_spinlock_t rq_pool_lock, waitk_pool_lock;
         struct p7_coro *running;
         unsigned rq_pool_cap, rq_pool_size, coro_pool_cap, coro_pool_size, waitk_pool_cap, waitk_pool_size;
-        struct p7_minheap *timer_heap;
         struct scraft_rbtree timer_queue;
     } sched_info;
     struct {
