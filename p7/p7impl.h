@@ -22,7 +22,7 @@ struct p7_coro_cntx {
     list_ctl_t lctl;
     ucontext_t uc;
     unsigned stack_size;
-    void *stack[];
+    void *stack[] __attribute__((aligned(16)));
 };
 
 struct p7_coro {
