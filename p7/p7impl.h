@@ -117,14 +117,15 @@ struct p7_cond_event {
 
 struct p7_double_queue {
     list_ctl_t queue[2];
-    volatile uint8_t active_idx;
+    volatile uint8_t active_idx, writing_busy;
 };
 
 static inline
 void p7_double_queue_init(struct p7_double_queue *q) {
     init_list_head(&(q->queue[0]));
     init_list_head(&(q->queue[1]));
-    __atomic_store_n(&(q->active_idx), 0, __ATOMIC_SEQ_CST);
+    __atomic_store_n(&(q->active_idx), 0, __ATOMIC_RELEASE);
+    __atomic_store_n(&(q->writing_busy), 0, __ATOMIC_RELEASE);
 }
 
 struct p7_carrier {
@@ -135,7 +136,7 @@ struct p7_carrier {
         list_ctl_t coro_queue, blocking_queue, dying_queue;
         list_ctl_t rq_pool_tl, coro_pool_tl, waitk_pool_tl;
         list_ctl_t rq_queues[2], *active_rq_queue, *local_rq_queue;
-        volatile uint8_t active_idx;
+        volatile uint8_t active_idx, rq_queue_writing;
         pthread_spinlock_t mutex;
         pthread_spinlock_t rq_queue_lock;
         pthread_spinlock_t rq_pool_lock, waitk_pool_lock;
