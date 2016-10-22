@@ -521,10 +521,11 @@ void *sched_loop(void *arg) {
         list_ctl_t *p, *t, *h;
 
         // quick & dirty fix
-        if (__atomic_load_n(&(self->sched_info.rq_queue_writing), __ATOMIC_ACQUIRE))
-            h = &(self->sched_info.rq_queues[active_queue_at[__atomic_load_n(&(self->sched_info.active_idx), __ATOMIC_SEQ_CST)]]);
-        else
-            h = &(self->sched_info.rq_queues[active_queue_at[__atomic_fetch_xor(&(self->sched_info.active_idx), (uint8_t) -1, __ATOMIC_SEQ_CST)]]);
+        {
+            uint8_t desired_writer_status = 1 & __atomic_load_n(&(self->sched_info.active_idx), __ATOMIC_ACQUIRE);
+            __atomic_compare_exchange_n(&(self->sched_info.active_idx), &desired_writer_status, 1 - desired_writer_status, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+            h = &(self->sched_info.rq_queues[1 - (self->sched_info.active_idx & 0x1)]);
+        }
         if (!list_is_empty(h)) {
             list_foreach_remove(p, h, t) {
                 list_del(t);
@@ -550,12 +551,9 @@ void *sched_loop(void *arg) {
         }
         uint32_t idx_mailbox;
         for (idx_mailbox = 0; idx_mailbox < self->icc_info.nmailboxes; idx_mailbox++) {
-            uint8_t debug_idx;
-            list_ctl_t *target_mailbox;
-            if (self->icc_info.mailboxes[idx_mailbox].writing_busy)
-                target_mailbox = &(self->icc_info.mailboxes[idx_mailbox].queue[debug_idx = active_queue_at[__atomic_load_n(&(self->icc_info.mailboxes[idx_mailbox].active_idx), __ATOMIC_SEQ_CST)]]);
-            else
-                target_mailbox = &(self->icc_info.mailboxes[idx_mailbox].queue[debug_idx = active_queue_at[__atomic_fetch_xor(&(self->icc_info.mailboxes[idx_mailbox].active_idx), (uint8_t) -1, __ATOMIC_SEQ_CST)]]);
+            uint8_t current_index_value = self->icc_info.mailboxes[idx_mailbox].active_idx, desired_writer_status = 1 & current_index_value;
+            __atomic_compare_exchange_n(&(self->icc_info.mailboxes[idx_mailbox].active_idx), &desired_writer_status, 1 - desired_writer_status, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+            list_ctl_t *target_mailbox = &(self->icc_info.mailboxes[idx_mailbox].queue[1 - (self->icc_info.mailboxes[idx_mailbox].active_idx & 1)]);
             mailbox_dispatch(target_mailbox);
         }
         mailbox_dispatch(&(self->icc_info.localbox));
@@ -616,11 +614,12 @@ int coro_create_request(void (*entry)(void *), void *arg, size_t stack_size) {
         if (rq != NULL) {
             // TODO not-so-heavy performace loss
             pthread_spin_lock(&(next_load->sched_info.rq_queue_lock));
-            __atomic_store_n(&(next_load->sched_info.rq_queue_writing), 1, __ATOMIC_RELEASE);
-            list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[active_queue_at[__atomic_load_n(&(next_load->sched_info.active_idx), __ATOMIC_SEQ_CST)]]));
-            __atomic_store_n(&(next_load->sched_info.rq_queue_writing), 0, __ATOMIC_RELEASE);
+            __atomic_or_fetch(&(next_load->sched_info.active_idx), 0x2, __ATOMIC_RELEASE);
+            list_add_tail(&(rq->lctl), &(next_load->sched_info.rq_queues[__atomic_load_n(&(next_load->sched_info.active_idx), __ATOMIC_ACQUIRE) & 0x1]));
+            __atomic_and_fetch(&(next_load->sched_info.active_idx), 0x1, __ATOMIC_RELEASE);
             pthread_spin_unlock(&(next_load->sched_info.rq_queue_lock));
-            if (atom_fetch_int32(next_load->iomon_info.is_blocking)) {
+            //if (atom_fetch_int32(next_load->iomon_info.is_blocking)) {
+            {
                 struct p7_intern_msg wakemsg = { .type = P7_INTERN_WAKEUP };
 #define     P7_SEND_TIMES    2
                 uint32_t nsendtimes = 0;
@@ -739,10 +738,10 @@ int p7_send_by_entity(void *dst, struct p7_msg *msg) {
         dst_carrier = self_view;
     } else {
         struct p7_carrier *target_carrier = dst_carrier = carriers[target->carrier_id];
-        __atomic_store_n(&(target_carrier->icc_info.mailboxes[self_view->carrier_id].writing_busy), 1, __ATOMIC_RELEASE);
-        list_ctl_t *q = &(target_carrier->icc_info.mailboxes[self_view->carrier_id].queue[active_queue_at[__atomic_load_n(&(target_carrier->icc_info.mailboxes[self_view->carrier_id].active_idx), __ATOMIC_SEQ_CST)]]);
+        __atomic_or_fetch(&(target_carrier->icc_info.mailboxes[self_view->carrier_id].active_idx), 0x2, __ATOMIC_RELEASE);
+        list_ctl_t *q = &(target_carrier->icc_info.mailboxes[self_view->carrier_id].queue[__atomic_load_n(&(target_carrier->icc_info.mailboxes[self_view->carrier_id].active_idx), __ATOMIC_ACQUIRE) & 0x1]);
         list_add_tail(&(msg->lctl), q);
-        __atomic_store_n(&(target_carrier->icc_info.mailboxes[self_view->carrier_id].writing_busy), 0, __ATOMIC_RELEASE);
+        __atomic_and_fetch(&(target_carrier->icc_info.mailboxes[self_view->carrier_id].active_idx), 0x1, __ATOMIC_RELEASE);
     }
     struct p7_intern_msg msgbuf = { .type = P7_INTERN_SENT };
     msgbuf.immpack_uintptr[0] = (uintptr_t) target;
