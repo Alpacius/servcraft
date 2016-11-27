@@ -379,6 +379,7 @@ struct p7r_scheduler *p7r_scheduler_ruin(struct p7r_scheduler *scheduler) {
 
 // carriers
 
+static
 struct p7r_carrier *p7r_carrier_init(
         struct p7r_carrier *carrier, 
         uint32_t index, 
@@ -388,11 +389,13 @@ struct p7r_carrier *p7r_carrier_init(
     return carrier;
 }
 
+static
 struct p7r_carrier *p7r_carrier_ruin(struct p7r_carrier *carrier) {
     // XXX empty implementation
     return carrier;
 }
 
+static
 void *p7r_carrier_lifespan(void *self_argument) {
     struct p7r_carrier *self = self_argument;
 
