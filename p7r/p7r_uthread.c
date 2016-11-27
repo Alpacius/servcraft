@@ -18,9 +18,10 @@
 // globals
 
 static struct p7r_scheduler *schedulers;
+static pthread_barrier_t carrier_barrier;
 
 
-// timer
+// timers
 
 static
 struct p7r_timer_core *p7r_timer_core_init(struct p7r_timer_core *timer, uint64_t timestamp, struct p7r_uthread *uthread) {
@@ -64,7 +65,7 @@ struct p7r_timer_core *p7r_timer_peek_earliest(struct p7r_timer_queue *queue) {
 }
 
 
-// uthread
+// uthreads & schedulers
 
 static int sched_bus_refresh(struct p7r_scheduler *scheduler);
 static struct p7r_uthread *sched_resched_target(struct p7r_scheduler *scheduler);
@@ -296,7 +297,9 @@ struct p7r_uthread *sched_resched_target(struct p7r_scheduler *scheduler) {
         return NULL;
     list_ctl_t *target_reference = scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING].next;
     list_del(target_reference);
-    return container_of(target_reference, struct p7r_uthread, linkable);
+    return 
+        list_add_tail(target_reference, &(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING])), 
+        container_of(target_reference, struct p7r_uthread, linkable);
 }
 
 static
@@ -371,4 +374,43 @@ struct p7r_scheduler *p7r_scheduler_ruin(struct p7r_scheduler *scheduler) {
     }
 
     return scheduler;
+}
+
+
+// carriers
+
+struct p7r_carrier *p7r_carrier_init(
+        struct p7r_carrier *carrier, 
+        uint32_t index, 
+        pthread_t pthread_id, 
+        struct p7r_scheduler *scheduler) {
+    (carrier->index = index), (carrier->pthread_id = pthread_id), (carrier->scheduler = scheduler);
+    return carrier;
+}
+
+struct p7r_carrier *p7r_carrier_ruin(struct p7r_carrier *carrier) {
+    // XXX empty implementation
+    return carrier;
+}
+
+void *p7r_carrier_lifespan(void *self_argument) {
+    struct p7r_carrier *self = self_argument;
+
+    pthread_barrier_wait(&carrier_barrier);
+
+    struct p7r_scheduler *scheduler = self->scheduler;
+    while (1) {     // TODO self-destruct
+        sched_bus_refresh(scheduler);
+        struct p7r_uthread_request request = sched_cherry_pick(scheduler);
+        if (request.user_entrance) {
+            struct p7r_uthread *uthread = sched_uthread_from_request(scheduler, request, P7R_STACK_POLICY_DEFAULT);
+            if (uthread)
+                list_add_tail(&(uthread->linkable), &(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
+        }
+        struct p7r_uthread *target = sched_resched_target(scheduler);
+        if (target)
+            p7r_context_switch(&(target->context), &(self->context));
+    }
+
+    return NULL;
 }
