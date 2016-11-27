@@ -66,6 +66,12 @@ struct p7r_timer_core *p7r_timer_peek_earliest(struct p7r_timer_queue *queue) {
 
 // uthread
 
+static int sched_bus_refresh(struct p7r_scheduler *scheduler);
+static struct p7r_uthread *sched_resched_target(struct p7r_scheduler *scheduler);
+static struct p7r_uthread_request sched_cherry_pick(struct p7r_scheduler *scheduler);
+
+static void sched_idle(struct p7r_uthread *uthread);
+
 static inline
 struct p7r_uthread_request *p7r_uthread_request_new(void (*entrance)(void *), void *argument) {
     struct p7r_uthread_request *request = NULL;
@@ -89,6 +95,11 @@ void p7r_uthread_change_state_clean(struct p7r_uthread *uthread, uint64_t status
 }
 
 static inline
+void p7r_uthread_switch(struct p7r_uthread *to, struct p7r_uthread *from) {
+    p7r_context_switch(&(to->context), &(from->context));
+}
+
+static inline
 void p7r_uthread_detach(struct p7r_uthread *uthread) {
     list_del(&(uthread->linkable));
 }
@@ -102,13 +113,22 @@ static
 void p7r_uthread_lifespan(void *uthread_) {
     struct p7r_uthread *self = uthread_;
 
-    struct p7r_uthread_request *reincarnation = NULL;
+    struct p7r_uthread_request reincarnation;
+    struct p7r_scheduler *self_scheduler = &(schedulers[self->scheduler_index]);
     do {
         p7r_uthread_change_state_clean(self, P7R_UTHREAD_RUNNING);
         self->entrance.user_entrance(self->entrance.user_argument);
         p7r_uthread_change_state_clean(self, P7R_UTHREAD_LIMBO);
-        // TODO reincarnation, with resched
-    } while (reincarnation);
+        reincarnation = sched_cherry_pick(self_scheduler);
+        if (reincarnation.user_entrance) {
+            (self->entrance.user_entrance = reincarnation.user_entrance), (self->entrance.user_argument = reincarnation.user_argument);
+            {
+                sched_bus_refresh(self_scheduler);
+                struct p7r_uthread *next_balance = sched_resched_target(self_scheduler);
+                p7r_uthread_switch(next_balance, self);
+            }
+        }
+    } while (reincarnation.user_entrance);
 
     p7r_uthread_detach(self);
     p7r_uthread_change_state_clean(self, P7R_UTHREAD_DYING);
@@ -160,11 +180,6 @@ static inline
 void p7r_uthread_delete(struct p7r_uthread *uthread) {
     struct p7r_stack_metamark *stack_meta = p7r_uthread_ruin(uthread)->stack_metamark;
     p7r_stack_free(stack_meta);
-}
-
-static inline
-void p7r_uthread_switch(struct p7r_uthread *to, struct p7r_uthread *from) {
-    p7r_context_switch(&(to->context), &(from->context));
 }
 
 static
@@ -284,9 +299,9 @@ struct p7r_uthread *sched_resched_target(struct p7r_scheduler *scheduler) {
     return container_of(target_reference, struct p7r_uthread, linkable);
 }
 
-static inline
-void sched_idle(struct p7r_uthread *uthread, struct p7r_scheduler *scheduler) {
-    p7r_context_switch(scheduler->runners.carrier_context, &(uthread->context));
+static
+void sched_idle(struct p7r_uthread *uthread) {
+    p7r_context_switch(schedulers[uthread->scheduler_index].runners.carrier_context, &(uthread->context));
 }
 
 static
