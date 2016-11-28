@@ -19,6 +19,7 @@
 
 static struct p7r_scheduler *schedulers;
 static pthread_barrier_t carrier_barrier;
+static __thread struct p7r_carrier *self_carrier;
 
 
 // timers
@@ -72,6 +73,16 @@ static struct p7r_uthread *sched_resched_target(struct p7r_scheduler *scheduler)
 static struct p7r_uthread_request sched_cherry_pick(struct p7r_scheduler *scheduler);
 
 static void sched_idle(struct p7r_uthread *uthread);
+
+static void p7r_internal_message_delete(struct p7r_internal_message *message);
+
+static inline
+struct p7r_uthread_request *p7r_uthread_request_init(
+        struct p7r_uthread_request *request,
+        void (*entrance)(void *),
+        void *argument) {
+    return (request->user_entrance = entrance), (request->user_argument = argument), request;
+}
 
 static inline
 struct p7r_uthread_request *p7r_uthread_request_new(void (*entrance)(void *), void *argument) {
@@ -185,7 +196,7 @@ void p7r_uthread_delete(struct p7r_uthread *uthread) {
 
 static
 void u2cc_handler_uthread_request(struct p7r_scheduler *scheduler, struct p7r_internal_message *message) {
-    struct p7r_uthread_request *request = (struct p7r_uthread_request *) message->content_buffer;
+    struct p7r_uthread_request *request = (struct p7r_uthread_request *) &(message->content_buffer);
     list_add_tail(&(request->linkable), &(scheduler->runners.request_queue));
 }
 
@@ -272,7 +283,8 @@ struct p7r_uthread_request sched_cherry_pick(struct p7r_scheduler *scheduler) {
         list_del(target_link);
         struct p7r_uthread_request *target_request = container_of(target_link, struct p7r_uthread_request, linkable);
         request = *target_request;
-        p7r_uthread_request_delete(target_request);
+        struct p7r_internal_message *message = P7R_MESSAGE_OF(target_request);  // XXX u2cc message deletion
+        p7r_internal_message_delete(message);
     }
     return request;
 }
@@ -398,6 +410,7 @@ struct p7r_carrier *p7r_carrier_ruin(struct p7r_carrier *carrier) {
 static
 void *p7r_carrier_lifespan(void *self_argument) {
     struct p7r_carrier *self = self_argument;
+    self_carrier = self;
 
     pthread_barrier_wait(&carrier_barrier);
 
@@ -419,3 +432,43 @@ void *p7r_carrier_lifespan(void *self_argument) {
 }
 
 
+// ucc & u2cc
+
+static
+void p7r_internal_message_delete(struct p7r_internal_message *message) {
+    __auto_type allocator = p7r_root_alloc_get_proxy();
+    scraft_deallocate(allocator, message);
+}
+
+static
+struct p7r_internal_message *p7r_u2cc_message_raw(uint64_t base_type, size_t size_hint) {
+    __auto_type allocator = p7r_root_alloc_get_proxy();
+    struct p7r_internal_message *message = scraft_allocate(allocator, P7R_BUFFERED_MESSAGE_SIZE(size_hint));
+    if (unlikely(message == NULL))
+        return NULL;
+    message->type = base_type|P7R_INTERNAL_U2CC;
+    return message;
+}
+
+// api & basement
+
+static
+int p7r_uthread_create(void (*entrance)(void *), void *argument) {
+    static uint32_t balance_index = 0;
+
+    uint32_t target_carrier_index = __atomic_add_fetch(&balance_index, 1, __ATOMIC_ACQ_REL);
+    uint32_t n_carriers = self_carrier->scheduler->n_carriers;
+
+    int immediate_created;
+
+    if (immediate_created = (target_carrier_index % n_carriers != self_carrier->index)) {
+        // TODO u2cc request
+    } else {
+        struct p7r_uthread_request request = { .user_entrance = entrance, .user_argument = argument };
+        struct p7r_uthread *uthread = sched_uthread_from_request(self_carrier->scheduler, request, P7R_STACK_POLICY_DEFAULT);
+        if (uthread)
+            list_add_tail(&(uthread->linkable), &(self_carrier->scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
+    }
+
+    return immediate_created;
+}
