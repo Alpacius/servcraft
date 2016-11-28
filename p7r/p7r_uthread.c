@@ -459,9 +459,9 @@ int p7r_uthread_create(void (*entrance)(void *), void *argument) {
     uint32_t target_carrier_index = __atomic_add_fetch(&balance_index, 1, __ATOMIC_ACQ_REL);
     uint32_t n_carriers = self_carrier->scheduler->n_carriers;
 
-    int immediate_created;
+    int remote_created;
 
-    if (immediate_created = (target_carrier_index % n_carriers != self_carrier->index)) {
+    if (remote_created = (target_carrier_index % n_carriers != self_carrier->index)) {
         // TODO u2cc request
     } else {
         struct p7r_uthread_request request = { .user_entrance = entrance, .user_argument = argument };
@@ -470,5 +470,5 @@ int p7r_uthread_create(void (*entrance)(void *), void *argument) {
             list_add_tail(&(uthread->linkable), &(self_carrier->scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
     }
 
-    return immediate_created;
+    return remote_created;
 }
