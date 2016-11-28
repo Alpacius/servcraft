@@ -48,6 +48,7 @@ struct p7r_timer_queue {
 
 struct p7r_delegation {
     int fd;
+    struct epoll_event epoll_event;
     struct p7r_uthread *uthread;
 };
 
