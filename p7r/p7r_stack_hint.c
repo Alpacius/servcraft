@@ -62,11 +62,12 @@ struct p7r_stack_metamark *p7r_stack_allocate_with_hint(struct p7r_stack_allocat
     (hint->failure_stat.measure_total < hint->failure_stat.measure_limit) && (hint->failure_stat.measure_total++);
     switch(hint->policy) {
         case P7R_STACK_POLICY_EDEN:
+        case P7R_STACK_POLICY_DEFAULT:
             stack_mark = p7r_stack_page_allocate(&(allocator->short_term));
             if (stack_mark)
                 return stack_mark;
             failure++;
-        case P7R_STACK_POLICY_DEFAULT:
+        case P7R_STACK_POLICY_PRUDENT:
             stack_mark = p7r_stack_page_allocate(&(allocator->long_term));
             if (stack_mark)
                 return stack_mark;
