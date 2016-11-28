@@ -328,6 +328,7 @@ struct p7r_scheduler *p7r_scheduler_init(
         struct p7r_stack_allocator_config config,
         int event_buffer_capacity) {
     __atomic_store_n(&(scheduler->status), P7R_SCHEDULER_BORN, __ATOMIC_RELEASE);
+    __auto_type allocator = p7r_root_alloc_get_proxy();
 
     (scheduler->index = index), (scheduler->n_carriers = n_carriers);
     scheduler->runners.carrier_context = carrier_context;
@@ -341,12 +342,12 @@ struct p7r_scheduler *p7r_scheduler_init(
     scheduler->bus.fd_epoll = epoll_create1(EPOLL_CLOEXEC);
     scheduler->bus.fd_notification = eventfd(0, EFD_CLOEXEC|EFD_NONBLOCK);
     scheduler->bus.consumed = 1;
-    scheduler->bus.message_boxes = malloc(sizeof(struct p7r_cpbuffer) * n_carriers);
+    scheduler->bus.message_boxes = scraft_allocate(allocator, sizeof(struct p7r_cpbuffer) * n_carriers);
     for (uint32_t index = 0; index < n_carriers; index++)
         cp_buffer_init(&(scheduler->bus.message_boxes[index]));
     p7r_timer_queue_init(&(scheduler->bus.timers));
     scheduler->bus.n_epoll_events = event_buffer_capacity;      // XXX We do not check anything - keep your sanity
-    scheduler->bus.epoll_events = malloc(sizeof(struct epoll_event) * event_buffer_capacity);
+    scheduler->bus.epoll_events = scraft_allocate(allocator, sizeof(struct epoll_event) * event_buffer_capacity);
     (scheduler->bus.notification.fd = scheduler->bus.fd_notification), (scheduler->bus.notification.uthread = NULL);
 
     __atomic_store_n(&(scheduler->status), P7R_SCHEDULER_ALIVE, __ATOMIC_RELEASE);
@@ -357,11 +358,12 @@ struct p7r_scheduler *p7r_scheduler_init(
 static
 struct p7r_scheduler *p7r_scheduler_ruin(struct p7r_scheduler *scheduler) {
     __atomic_store_n(&(scheduler->status), P7R_SCHEDULER_DYING, __ATOMIC_RELEASE);
+    __auto_type allocator = p7r_root_alloc_get_proxy();
 
     // All uthreads will be destroyed with the corresponding stack allocator
     p7r_stack_allocator_ruin(&(scheduler->runners.stack_allocator));
 
-    free(scheduler->bus.epoll_events);
+    scraft_deallocate(allocator, scheduler->bus.epoll_events);
     close(scheduler->bus.fd_epoll);
     close(scheduler->bus.fd_notification);
     {
@@ -375,7 +377,7 @@ struct p7r_scheduler *p7r_scheduler_ruin(struct p7r_scheduler *scheduler) {
             }
         }
     }
-    free(scheduler->bus.message_boxes);
+    scraft_deallocate(allocator, scheduler->bus.message_boxes);
 
     {
         list_ctl_t *p, *t;
@@ -432,7 +434,7 @@ void *p7r_carrier_lifespan(void *self_argument) {
 }
 
 
-// ucc & u2cc
+// iuc & u2cc
 
 static
 void p7r_internal_message_delete(struct p7r_internal_message *message) {
