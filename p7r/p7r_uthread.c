@@ -18,6 +18,7 @@
 // globals
 
 static struct p7r_scheduler *schedulers;
+static struct p7r_carrier *carriers;
 static pthread_barrier_t carrier_barrier;
 static __thread struct p7r_carrier *self_carrier;
 
@@ -341,6 +342,12 @@ struct p7r_scheduler *p7r_scheduler_init(
 
     scheduler->bus.fd_epoll = epoll_create1(EPOLL_CLOEXEC);
     scheduler->bus.fd_notification = eventfd(0, EFD_CLOEXEC|EFD_NONBLOCK);
+    {
+        scheduler->bus.notification.fd = scheduler->bus.fd_notification;
+        scheduler->bus.notification.epoll_event.events = EPOLLIN;
+        scheduler->bus.notification.epoll_event.data.ptr = &(scheduler->bus.notification);
+        epoll_ctl(scheduler->bus.fd_epoll, EPOLL_CTL_ADD, scheduler->bus.notification.fd, &(scheduler->bus.notification.epoll_event));
+    }
     scheduler->bus.consumed = 1;
     scheduler->bus.message_boxes = scraft_allocate(allocator, sizeof(struct p7r_cpbuffer) * n_carriers);
     for (uint32_t index = 0; index < n_carriers; index++)
@@ -450,6 +457,16 @@ struct p7r_internal_message *p7r_u2cc_message_raw(uint64_t base_type, size_t siz
         return NULL;
     message->type = base_type|P7R_INTERNAL_U2CC;
     return message;
+}
+
+static
+void p7r_u2cc_message_post(uint32_t dst_index, struct p7r_internal_message *message) {
+    struct p7r_scheduler *destination = carriers[dst_index].scheduler;
+    cp_buffer_produce(&(destination->bus.message_boxes[self_carrier->index]), &(message->linkable));
+    {
+        uint64_t event_notification = 1;
+        write(destination->bus.fd_notification, &event_notification, sizeof(uint64_t));
+    }
 }
 
 // api & basement
