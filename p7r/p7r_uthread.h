@@ -107,7 +107,7 @@ struct p7r_internal_message {
     char content_buffer;
 } __attribute__((packed));
 
-#define     P7R_BUFFERED_MESSAGE_SIZE(size_)    (sizeof(struct p7r_internal_message) - 1 + (size_))
+#define     P7R_BUFFERED_MESSAGE_SIZE(size_)    (sizeof(struct p7r_internal_message) - sizeof(char) + (size_))
 #define     P7R_MESSAGE_OF(buffer_)             container_of(((char *) buffer_), struct p7r_internal_message, content_buffer)
 
 #endif      // P7R_UTHREAD_H_

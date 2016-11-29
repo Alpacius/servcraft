@@ -469,6 +469,7 @@ void p7r_u2cc_message_post(uint32_t dst_index, struct p7r_internal_message *mess
     }
 }
 
+
 // api & basement
 
 static
@@ -481,7 +482,12 @@ int p7r_uthread_create(void (*entrance)(void *), void *argument) {
     int remote_created;
 
     if (remote_created = (target_carrier_index % n_carriers != self_carrier->index)) {
-        // TODO u2cc request
+        struct p7r_internal_message *request_message = p7r_u2cc_message_raw(P7R_MESSAGE_UTHREAD_REQUEST, sizeof(struct p7r_uthread_request));
+        if (unlikely(request_message == NULL))
+            return -1;
+        struct p7r_uthread_request *request = (struct p7r_uthread_request *) &(request_message->content_buffer);
+        (request->user_entrance = entrance), (request->user_argument = argument);
+        p7r_u2cc_message_post(target_carrier_index % n_carriers, request_message);
     } else {
         struct p7r_uthread_request request = { .user_entrance = entrance, .user_argument = argument };
         struct p7r_uthread *uthread = sched_uthread_from_request(self_carrier->scheduler, request, P7R_STACK_POLICY_DEFAULT);
