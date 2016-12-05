@@ -56,14 +56,14 @@ struct p7r_delegation {
         struct {
             int fd;
             struct epoll_event epoll_event;
-            int triggered;
+            int triggered, enabled;
         } io;
         struct {
-            int triggered;
+            int triggered, enabled;
         } oob;
         struct {
             struct p7r_timer_core measurement;
-            int triggered;
+            int triggered, enabled;
         } timer;
     } checked_events;
     struct p7r_uthread *uthread;

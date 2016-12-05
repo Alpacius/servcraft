@@ -4,5 +4,6 @@
 #include    <stdint.h>
 #include    <stdlib.h>
 #include    <string.h>
+#include    <stdarg.h>
 
 #endif      // P7R_STDC_COMMON_H_

@@ -242,6 +242,7 @@ int sched_bus_refresh(struct p7r_scheduler *scheduler) {
             uint64_t notification_counter;
             read(scheduler->bus.fd_notification, &notification_counter, sizeof(uint64_t));
         } else {
+            delegation->checked_events.io.triggered = 1;
             p7r_uthread_reenable(scheduler, delegation->uthread);
         }
     }
@@ -505,4 +506,30 @@ int p7r_uthread_create(void (*entrance)(void *), void *argument) {
 static
 void p7r_blocking_point(void) {
     // TODO implementation
+}
+
+static inline
+struct p7r_delegation *p7r_delegation_io_based(struct p7r_delegation *delegation, int fd) {
+    // TODO implementation
+    return delegation;
+}
+
+static inline
+struct p7r_delegation *p7r_delegation_iuc_based(struct p7r_delegation *delegation) {
+    // TODO implementation
+    return delegation;
+}
+
+static inline
+struct p7r_delegation *p7r_delegation_timed(struct p7r_delegation *delegation) {
+    // TODO implementation
+    return delegation;
+}
+
+struct p7r_delegation p7r_delegate(uint64_t events, ...) {
+    struct p7r_delegation delegation;
+
+    // TODO implementation
+
+    return delegation;
 }
