@@ -34,6 +34,10 @@ struct p7r_uthread_request {
 #define     P7R_UTHREAD_RUNNING         1
 #define     P7R_UTHREAD_LIMBO           2
 #define     P7R_UTHREAD_DYING           3
+#define     P7R_UTHREAD_IO_READY        (1 << 4)
+#define     P7R_UTHREAD_COMMU_READY     (1 << 5)
+
+#define     P7R_UTHREAD_STATUS_MASK     7
 
 struct p7r_timer_core {
     uint64_t timestamp;
@@ -47,10 +51,29 @@ struct p7r_timer_queue {
 };
 
 struct p7r_delegation {
-    int fd;
-    struct epoll_event epoll_event;
+    uint64_t p7r_event;
+    struct {
+        struct {
+            int fd;
+            struct epoll_event epoll_event;
+            int triggered;
+        } io;
+        struct {
+            int triggered;
+        } oob;
+        struct {
+            struct p7r_timer_core measurement;
+            int triggered;
+        } timer;
+    } checked_events;
     struct p7r_uthread *uthread;
 };
+
+#define     P7R_DELEGATION_BASE         0
+#define     P7R_DELEGATION_READ         1
+#define     P7R_DELEGATION_WRITE        2
+#define     P7R_DELEGATION_ALLOW_OOB    (1 << 4)
+#define     P7R_DELEGATION_TIMED        (1 << 5)
 
 #define     P7R_N_SCHED_QUEUES          3
 #define     P7R_SCHED_QUEUE_RUNNING     0

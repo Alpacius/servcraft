@@ -343,10 +343,14 @@ struct p7r_scheduler *p7r_scheduler_init(
     scheduler->bus.fd_epoll = epoll_create1(EPOLL_CLOEXEC);
     scheduler->bus.fd_notification = eventfd(0, EFD_CLOEXEC|EFD_NONBLOCK);
     {
-        scheduler->bus.notification.fd = scheduler->bus.fd_notification;
-        scheduler->bus.notification.epoll_event.events = EPOLLIN;
-        scheduler->bus.notification.epoll_event.data.ptr = &(scheduler->bus.notification);
-        epoll_ctl(scheduler->bus.fd_epoll, EPOLL_CTL_ADD, scheduler->bus.notification.fd, &(scheduler->bus.notification.epoll_event));
+        scheduler->bus.notification.checked_events.io.fd = scheduler->bus.fd_notification;
+        scheduler->bus.notification.checked_events.io.epoll_event.events = EPOLLIN;
+        scheduler->bus.notification.checked_events.io.epoll_event.data.ptr = &(scheduler->bus.notification);
+        epoll_ctl(
+                scheduler->bus.fd_epoll, 
+                EPOLL_CTL_ADD, 
+                scheduler->bus.notification.checked_events.io.fd, 
+                &(scheduler->bus.notification.checked_events.io.epoll_event));
     }
     scheduler->bus.consumed = 1;
     scheduler->bus.message_boxes = scraft_allocate(allocator, sizeof(struct p7r_cpbuffer) * n_carriers);
@@ -355,7 +359,7 @@ struct p7r_scheduler *p7r_scheduler_init(
     p7r_timer_queue_init(&(scheduler->bus.timers));
     scheduler->bus.n_epoll_events = event_buffer_capacity;      // XXX We do not check anything - keep your sanity
     scheduler->bus.epoll_events = scraft_allocate(allocator, sizeof(struct epoll_event) * event_buffer_capacity);
-    (scheduler->bus.notification.fd = scheduler->bus.fd_notification), (scheduler->bus.notification.uthread = NULL);
+    (scheduler->bus.notification.checked_events.io.fd = scheduler->bus.fd_notification), (scheduler->bus.notification.uthread = NULL);
 
     __atomic_store_n(&(scheduler->status), P7R_SCHEDULER_ALIVE, __ATOMIC_RELEASE);
 
@@ -496,4 +500,9 @@ int p7r_uthread_create(void (*entrance)(void *), void *argument) {
     }
 
     return remote_created;
+}
+
+static
+void p7r_blocking_point(void) {
+    // TODO implementation
 }
