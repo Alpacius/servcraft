@@ -513,7 +513,7 @@ void p7r_blocking_point(void) {
 }
 
 static inline
-int *p7r_delegation_io_based(struct p7r_scheduler *scheduler, struct p7r_delegation *delegation, int fd) {
+int p7r_delegation_io_based(struct p7r_scheduler *scheduler, struct p7r_delegation *delegation, int fd) {
     int ret = 1;
     delegation->checked_events.io.fd = fd;
     (delegation->checked_events.io.enabled = 1), (delegation->checked_events.io.triggered = 0);
