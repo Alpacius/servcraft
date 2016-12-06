@@ -243,7 +243,11 @@ int sched_bus_refresh(struct p7r_scheduler *scheduler) {
             read(scheduler->bus.fd_notification, &notification_counter, sizeof(uint64_t));
         } else {
             delegation->checked_events.io.triggered = 1;
-            p7r_uthread_reenable(scheduler, delegation->uthread);
+            // remove triggered timer event
+            if (!delegation->checked_events.timer.triggered) {
+                p7r_uthread_reenable(scheduler, delegation->uthread);
+                scraft_rbt_detach(&(delegation->checked_events.timer.measurement.maplink));
+            }
         }
     }
 
@@ -509,25 +513,41 @@ void p7r_blocking_point(void) {
 }
 
 static inline
-struct p7r_delegation *p7r_delegation_io_based(struct p7r_delegation *delegation, int fd) {
-    // TODO implementation
-    return delegation;
+int *p7r_delegation_io_based(struct p7r_scheduler *scheduler, struct p7r_delegation *delegation, int fd) {
+    int ret = 1;
+    delegation->checked_events.io.fd = fd;
+    (delegation->checked_events.io.enabled = 1), (delegation->checked_events.io.triggered = 0);
+    delegation->checked_events.io.epoll_event.events = 
+        ((delegation->p7r_event & P7R_DELEGATION_READ) ? EPOLLIN : 0) |
+        ((delegation->p7r_event & P7R_DELEGATION_WRITE) ? EPOLLOUT : 0) |
+        EPOLLONESHOT;
+    delegation->checked_events.io.epoll_event.data.ptr = delegation;
+    int fd_epoll = scheduler->bus.fd_epoll;
+    if (epoll_ctl(fd_epoll, EPOLL_CTL_MOD, fd, &(delegation->checked_events.io.epoll_event)) == -1)
+        if (errno == ENOENT)
+            (epoll_ctl(fd_epoll, EPOLL_CTL_ADD, fd,&(delegation->checked_events.io.epoll_event)) == 0) || (ret = 0);
+    return ret;
 }
 
 static inline
-struct p7r_delegation *p7r_delegation_iuc_based(struct p7r_delegation *delegation) {
+int p7r_delegation_iuc_based(struct p7r_scheduler *scheduler, struct p7r_delegation *delegation) {
     // TODO implementation
-    return delegation;
+    return 0;
 }
 
 static inline
-struct p7r_delegation *p7r_delegation_timed(struct p7r_delegation *delegation) {
-    // TODO implementation
-    return delegation;
+int p7r_delegation_timed(struct p7r_scheduler *scheduler, struct p7r_delegation *delegation, uint64_t dt) {
+    p7r_timer_core_init_diff(&(delegation->checked_events.timer.measurement), dt, scheduler->runners.running);
+    (delegation->checked_events.timer.enabled = 1), (delegation->checked_events.timer.triggered = 0);
+    return 1;
 }
 
 struct p7r_delegation p7r_delegate(uint64_t events, ...) {
     struct p7r_delegation delegation;
+
+    struct p7r_scheduler *self_scheduler = self_carrier->scheduler;
+
+    delegation.p7r_event = events;
 
     // TODO implementation
 
