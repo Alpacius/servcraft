@@ -119,7 +119,7 @@ struct p7r_carrier {
 #define     P7R_MESSAGE_UNDEFINED           (0 << 2)
 #define     P7R_MESSAGE_UTHREAD_REQUEST     (1 << 2)
 
-#define     P7R_MESSAGE_REAL_TYPE(type_)    (((type_) & ~3) >> 2)
+#define     P7R_MESSAGE_REAL_TYPE(type_)    (((type_) & ~7) >> 2)
 
 struct p7r_internal_message {
     uint64_t type;
