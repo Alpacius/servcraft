@@ -309,15 +309,27 @@ struct p7r_uthread *sched_uthread_from_request(
                 stack_alloc_policy);
 }
 
+static inline
+int p7r_uthread_request_is_null(struct p7r_uthread_request request) {
+    return (request.user_entrance == NULL);
+}
+
 static
 struct p7r_uthread *sched_resched_target(struct p7r_scheduler *scheduler) {
-    if (list_is_empty(&(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING])))
-        return NULL;
+    if (list_is_empty(&(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]))) {
+        struct p7r_uthread_request request = sched_cherry_pick(scheduler);
+        if (p7r_uthread_request_is_null(request))
+            return NULL;
+        struct p7r_uthread *uthread = sched_uthread_from_request(scheduler, request, P7R_STACK_POLICY_DEFAULT);
+        list_add_tail(&(uthread->linkable), &(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
+    }
     list_ctl_t *target_reference = scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING].next;
+    struct p7r_uthread *target;
+    scheduler->runners.running = (target = container_of(target_reference, struct p7r_uthread, linkable));
     list_del(target_reference);
     return 
         list_add_tail(target_reference, &(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING])), 
-        container_of(target_reference, struct p7r_uthread, linkable);
+        target;
 }
 
 static
@@ -509,14 +521,24 @@ int p7r_uthread_create(void (*entrance)(void *), void *argument) {
 
 static
 void p7r_blocking_point(void) {
-    // TODO implementation
+    struct p7r_scheduler *self_scheduler = self_carrier->scheduler;
+    struct p7r_uthread *self = self_scheduler->runners.running;
+
+    list_del(&(self->linkable));
+    list_add_tail(&(self->linkable), &(self_scheduler->runners.sched_queues[P7R_SCHED_QUEUE_BLOCKING]));
+    self_scheduler->runners.running = NULL;
+
+    struct p7r_uthread *target;
+    do {
+        sched_bus_refresh(self_scheduler);
+        target = sched_resched_target(self_scheduler);
+    } while (target == NULL);
 }
 
 static inline
 int p7r_delegation_io_based(struct p7r_scheduler *scheduler, struct p7r_delegation *delegation, int fd) {
     int ret = 1;
     delegation->checked_events.io.fd = fd;
-    (delegation->checked_events.io.enabled = 1), (delegation->checked_events.io.triggered = 0);
     delegation->checked_events.io.epoll_event.events = 
         ((delegation->p7r_event & P7R_DELEGATION_READ) ? EPOLLIN : 0) |
         ((delegation->p7r_event & P7R_DELEGATION_WRITE) ? EPOLLOUT : 0) |
@@ -526,6 +548,7 @@ int p7r_delegation_io_based(struct p7r_scheduler *scheduler, struct p7r_delegati
     if (epoll_ctl(fd_epoll, EPOLL_CTL_MOD, fd, &(delegation->checked_events.io.epoll_event)) == -1)
         if (errno == ENOENT)
             (epoll_ctl(fd_epoll, EPOLL_CTL_ADD, fd,&(delegation->checked_events.io.epoll_event)) == 0) || (ret = 0);
+    ret && ((delegation->checked_events.io.enabled = 1), (delegation->checked_events.io.triggered = 0));
     return ret;
 }
 
@@ -543,13 +566,26 @@ int p7r_delegation_timed(struct p7r_scheduler *scheduler, struct p7r_delegation 
 }
 
 struct p7r_delegation p7r_delegate(uint64_t events, ...) {
-    struct p7r_delegation delegation;
-
     struct p7r_scheduler *self_scheduler = self_carrier->scheduler;
+    struct p7r_delegation delegation = { .uthread = self_scheduler->runners.running };
 
     delegation.p7r_event = events;
 
-    // TODO implementation
+    va_list arguments;
+    va_start(arguments, events);
+
+    if (events & (P7R_DELEGATION_READ|P7R_DELEGATION_WRITE)) 
+        p7r_delegation_io_based(self_scheduler, &delegation, va_arg(arguments, int));
+
+    if (events & P7R_DELEGATION_ALLOW_OOB)
+        p7r_delegation_iuc_based(self_scheduler, &delegation);
+
+    if (events & P7R_DELEGATION_TIMED)
+        p7r_delegation_timed(self_scheduler, &delegation, va_arg(arguments, uint64_t));
+
+    va_end(arguments);
+
+    p7r_blocking_point();
 
     return delegation;
 }
