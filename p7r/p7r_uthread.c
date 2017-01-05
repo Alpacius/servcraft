@@ -21,6 +21,7 @@ static struct p7r_scheduler *schedulers;
 static struct p7r_carrier *carriers;
 static pthread_barrier_t carrier_barrier;
 static __thread struct p7r_carrier *self_carrier;
+static struct p7r_uthread main_uthread = { .scheduler_index = 0, .status = P7R_UTHREAD_RUNNING };
 
 
 // timers
@@ -588,4 +589,52 @@ struct p7r_delegation p7r_delegate(uint64_t events, ...) {
     p7r_blocking_point();
 
     return delegation;
+}
+
+int p7r_init(struct p7r_config config) {
+    __auto_type allocator = p7r_root_alloc_get_proxy();
+    schedulers = scraft_allocate(allocator, sizeof(struct p7r_scheduler) * config.concurrency.n_carriers);
+    carriers = scraft_allocate(allocator, sizeof(struct p7r_carrier) * config.concurrency.n_carriers);
+    if (!schedulers || !carriers) {
+        (!schedulers && (scraft_deallocate(allocator, schedulers), 0)), (!carriers && (scraft_deallocate(allocator, carriers), 0));
+        return -1;
+    }
+    for (uint32_t index = 0; index < config.concurrency.n_carriers; index++) {
+        (carriers[index].index = index), (carriers[index].scheduler = &(schedulers[index]));
+        p7r_scheduler_init(
+                &(schedulers[index]), 
+                index, 
+                config.concurrency.n_carriers, 
+                &(carriers[index].context), 
+                config.stack_allocator, 
+                config.concurrency.event_buffer_capacity
+        );
+    }
+    {
+        pthread_barrierattr_t barrier_attribute;
+        pthread_barrierattr_init(&barrier_attribute);
+        pthread_barrier_init(&carrier_barrier, &barrier_attribute, config.concurrency.n_carriers);
+    }
+    pthread_attr_t detach_attr;
+    {
+        pthread_attr_init(&detach_attr);
+        pthread_attr_setdetachstate(&detach_attr, PTHREAD_CREATE_DETACHED);
+    }
+    for (uint32_t index = 1; index < config.concurrency.n_carriers; index++)
+        pthread_create(&(carriers[index].pthread_id), &detach_attr, p7r_carrier_lifespan, &(carriers[index]));
+    
+    struct p7r_stack_metamark *main_sched_stack = 
+        p7r_stack_allocate_hintless(&(carriers[0].scheduler->runners.stack_allocator), P7R_STACK_SOURCE_DEFAULT);
+    p7r_context_init(
+            &(carriers[0].context), 
+            main_sched_stack->raw_content_addr, 
+            main_sched_stack->n_bytes_page * main_sched_stack->provider->parent->properties.n_pages_stack_total
+    );
+    p7r_context_prepare(&(carriers[0].context), (void (*)(void *)) p7r_carrier_lifespan, &(carriers[0]));
+    list_add_tail(&(main_uthread.linkable), &(carriers[0].scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
+    carriers[0].scheduler->runners.running = &main_uthread;
+
+    p7r_context_switch(&(carriers[0].context), &(main_uthread.context));
+
+    return 0;
 }

@@ -133,4 +133,17 @@ struct p7r_internal_message {
 #define     P7R_BUFFERED_MESSAGE_SIZE(size_)    (sizeof(struct p7r_internal_message) - sizeof(char) + (size_))
 #define     P7R_MESSAGE_OF(buffer_)             container_of(((char *) buffer_), struct p7r_internal_message, content_buffer)
 
+struct p7r_config {
+    struct {
+        uint32_t n_carriers;
+        int event_buffer_capacity;
+    } concurrency;
+    struct {
+        void *(*allocate)(size_t);
+        void (*deallocate)(void *);
+        void *(*reallocate)(void *, size_t);
+    } root_allocator;
+    struct p7r_stack_allocator_config stack_allocator;
+};
+
 #endif      // P7R_UTHREAD_H_
