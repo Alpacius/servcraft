@@ -624,7 +624,7 @@ int p7r_init(struct p7r_config config) {
         pthread_create(&(carriers[index].pthread_id), &detach_attr, p7r_carrier_lifespan, &(carriers[index]));
     
     struct p7r_stack_metamark *main_sched_stack = 
-        p7r_stack_allocate_hintless(&(carriers[0].scheduler->runners.stack_allocator), P7R_STACK_SOURCE_DEFAULT);
+        p7r_stack_allocate_hintless(&(carriers[0].scheduler->runners.stack_allocator), P7R_STACK_POLICY_DEFAULT);
     p7r_context_init(
             &(carriers[0].context), 
             main_sched_stack->raw_content_addr, 
