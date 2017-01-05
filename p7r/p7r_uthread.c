@@ -619,9 +619,9 @@ int p7r_init(struct p7r_config config) {
     {
         pthread_attr_init(&detach_attr);
         pthread_attr_setdetachstate(&detach_attr, PTHREAD_CREATE_DETACHED);
+        for (uint32_t index = 1; index < config.concurrency.n_carriers; index++)
+            pthread_create(&(carriers[index].pthread_id), &detach_attr, p7r_carrier_lifespan, &(carriers[index]));
     }
-    for (uint32_t index = 1; index < config.concurrency.n_carriers; index++)
-        pthread_create(&(carriers[index].pthread_id), &detach_attr, p7r_carrier_lifespan, &(carriers[index]));
     
     struct p7r_stack_metamark *main_sched_stack = 
         p7r_stack_allocate_hintless(&(carriers[0].scheduler->runners.stack_allocator), P7R_STACK_POLICY_DEFAULT);
