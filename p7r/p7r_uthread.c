@@ -615,8 +615,8 @@ int p7r_init(struct p7r_config config) {
         pthread_barrierattr_init(&barrier_attribute);
         pthread_barrier_init(&carrier_barrier, &barrier_attribute, config.concurrency.n_carriers);
     }
-    pthread_attr_t detach_attr;
     {
+        pthread_attr_t detach_attr;
         pthread_attr_init(&detach_attr);
         pthread_attr_setdetachstate(&detach_attr, PTHREAD_CREATE_DETACHED);
         for (uint32_t index = 1; index < config.concurrency.n_carriers; index++)
