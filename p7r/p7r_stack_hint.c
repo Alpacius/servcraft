@@ -62,7 +62,6 @@ struct p7r_stack_metamark *p7r_stack_allocate_with_hint(struct p7r_stack_allocat
     (hint->failure_stat.measure_total < hint->failure_stat.measure_limit) && (hint->failure_stat.measure_total++);
     switch(hint->policy) {
         case P7R_STACK_POLICY_EDEN:
-        case P7R_STACK_POLICY_DEFAULT:
             stack_mark = p7r_stack_page_allocate(&(allocator->short_term));
             if (stack_mark)
                 return stack_mark;
@@ -81,9 +80,8 @@ struct p7r_stack_metamark *p7r_stack_allocate_with_hint(struct p7r_stack_allocat
 
 struct p7r_stack_metamark *p7r_stack_allocate_hintless(struct p7r_stack_allocator *allocator, uint8_t policy) {
     struct p7r_stack_metamark *stack_mark = NULL;
-    switch(hint->policy) {
+    switch(policy) {
         case P7R_STACK_POLICY_EDEN:
-        case P7R_STACK_POLICY_DEFAULT:
             stack_mark = p7r_stack_page_allocate(&(allocator->short_term));
             if (stack_mark)
                 return stack_mark;

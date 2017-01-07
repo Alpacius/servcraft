@@ -146,4 +146,8 @@ struct p7r_config {
     struct p7r_stack_allocator_config stack_allocator;
 };
 
+int p7r_init(struct p7r_config config);
+struct p7r_delegation p7r_delegate(uint64_t events, ...);
+int p7r_uthread_create(void (*entrance)(void *), void *argument);
+
 #endif      // P7R_UTHREAD_H_

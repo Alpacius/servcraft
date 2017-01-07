@@ -165,7 +165,8 @@ struct p7r_uthread *p7r_uthread_init(
     p7r_context_init(
             &(uthread->context), 
             stack_metamark->raw_content_addr, 
-            stack_metamark->n_bytes_page * stack_metamark->provider->parent->properties.n_pages_stack_total);
+            stack_metamark->n_bytes_page * (stack_metamark->provider->parent->properties.n_pages_stack_total - 2)
+    );
     p7r_context_prepare(&(uthread->context), uthread->entrance.real_entrance, uthread->entrance.real_argument);
     return uthread;
 }
@@ -494,7 +495,6 @@ void p7r_u2cc_message_post(uint32_t dst_index, struct p7r_internal_message *mess
 
 // api & basement
 
-static
 int p7r_uthread_create(void (*entrance)(void *), void *argument) {
     static uint32_t balance_index = 0;
 
@@ -592,6 +592,13 @@ struct p7r_delegation p7r_delegate(uint64_t events, ...) {
 }
 
 int p7r_init(struct p7r_config config) {
+    {
+        __auto_type allocator_real = p7r_root_alloc_get_allocator();
+        allocator_real->allocator_.closure_ = config.root_allocator.allocate;
+        allocator_real->deallocator_.closure_ = config.root_allocator.deallocate;
+        allocator_real->reallocator_.closure_ = config.root_allocator.reallocate;
+    }
+
     __auto_type allocator = p7r_root_alloc_get_proxy();
     schedulers = scraft_allocate(allocator, sizeof(struct p7r_scheduler) * config.concurrency.n_carriers);
     carriers = scraft_allocate(allocator, sizeof(struct p7r_carrier) * config.concurrency.n_carriers);
@@ -628,7 +635,7 @@ int p7r_init(struct p7r_config config) {
     p7r_context_init(
             &(carriers[0].context), 
             main_sched_stack->raw_content_addr, 
-            main_sched_stack->n_bytes_page * main_sched_stack->provider->parent->properties.n_pages_stack_total
+            main_sched_stack->n_bytes_page * (main_sched_stack->provider->parent->properties.n_pages_stack_total - 2)
     );
     p7r_context_prepare(&(carriers[0].context), (void (*)(void *)) p7r_carrier_lifespan, &(carriers[0]));
     list_add_tail(&(main_uthread.linkable), &(carriers[0].scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
