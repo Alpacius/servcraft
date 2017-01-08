@@ -148,6 +148,7 @@ struct p7r_config {
 
 int p7r_init(struct p7r_config config);
 struct p7r_delegation p7r_delegate(uint64_t events, ...);
+void p7r_yield(void);
 int p7r_uthread_create(void (*entrance)(void *), void *argument);
 
 #endif      // P7R_UTHREAD_H_

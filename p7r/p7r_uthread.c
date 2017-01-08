@@ -495,7 +495,8 @@ void p7r_u2cc_message_post(uint32_t dst_index, struct p7r_internal_message *mess
 
 // api & basement
 
-int p7r_uthread_create(void (*entrance)(void *), void *argument) {
+static
+int p7r_uthread_create_(void (*entrance)(void *), void *argument) {
     static uint32_t balance_index = 0;
 
     uint32_t target_carrier_index = __atomic_add_fetch(&balance_index, 1, __ATOMIC_ACQ_REL);
@@ -564,6 +565,19 @@ int p7r_delegation_timed(struct p7r_scheduler *scheduler, struct p7r_delegation 
     p7r_timer_core_init_diff(&(delegation->checked_events.timer.measurement), dt, scheduler->runners.running);
     (delegation->checked_events.timer.enabled = 1), (delegation->checked_events.timer.triggered = 0);
     return 1;
+}
+
+void p7r_yield(void) {
+    struct p7r_scheduler *self_scheduler = self_carrier->scheduler;
+    struct p7r_uthread *self = self_scheduler->runners.running;
+    sched_bus_refresh(self_scheduler);
+    struct p7r_uthread *target = sched_resched_target(self_scheduler);
+    p7r_uthread_switch(target, self);
+}
+
+int p7r_uthread_create(void (*entrance)(void *), void *argument) {
+    int locally_created = p7r_uthread_create_(entrance, argument);
+    return p7r_yield(), locally_created;
 }
 
 struct p7r_delegation p7r_delegate(uint64_t events, ...) {
