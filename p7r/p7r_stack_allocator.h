@@ -46,7 +46,7 @@ struct p7r_stack_metamark {
     char *raw_content_addr, *red_zone_addr;
     list_ctl_t linkable;
     char user_metadata[];
-};
+} __attribute__((packed));
 
 struct p7r_stack_allocator *p7r_stack_allocator_init(struct p7r_stack_allocator *allocator, struct p7r_stack_allocator_config config);
 void p7r_stack_allocator_ruin(struct p7r_stack_allocator *allocator);

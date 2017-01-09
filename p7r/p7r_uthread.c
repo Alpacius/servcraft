@@ -577,7 +577,8 @@ void p7r_yield(void) {
 
 int p7r_uthread_create(void (*entrance)(void *), void *argument) {
     int locally_created = p7r_uthread_create_(entrance, argument);
-    return p7r_yield(), locally_created;
+    //return p7r_yield(), locally_created;
+    return locally_created;
 }
 
 struct p7r_delegation p7r_delegate(uint64_t events, ...) {

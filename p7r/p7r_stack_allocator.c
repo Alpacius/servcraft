@@ -207,24 +207,39 @@ struct p7r_stack_metamark *p7r_stack_page_allocate_short_term(struct p7r_stack_a
     return result;
 }
 
+static
+struct p7r_stack_allocator_config p7r_stack_allocator_config_adjust(struct p7r_stack_allocator_config *config_) {
+    __auto_type config = *config_;
+    config.n_pages_stack_user = config.n_pages_stack_total - 2;
+#define adjust_capacity(capacity_) \
+    do { \
+        if ((capacity_) % config.n_pages_stack_total) \
+            (capacity_) = (capacity_) - (capacity_) % config.n_pages_stack_total + config.n_pages_stack_total; \
+    } while (0)
+    adjust_capacity(config.n_pages_short_term);
+    adjust_capacity(config.n_pages_long_term);
+    adjust_capacity(config.n_pages_slave);
+    return config;
+}
+
 struct p7r_stack_allocator *p7r_stack_allocator_init(struct p7r_stack_allocator *allocator, struct p7r_stack_allocator_config config) {
-    allocator->properties = config;
+    allocator->properties = p7r_stack_allocator_config_adjust(&config);
     p7r_stack_page_slaver_init(&(allocator->slaves));
 
     p7r_stack_page_provider_init(
             &(allocator->long_term),
             P7R_STACK_ALLOCATOR_MASTER, 
-            config.n_pages_long_term, 
-            config.n_pages_stack_total, 
-            config.n_bytes_page, 
+            allocator->properties.n_pages_long_term, 
+            allocator->properties.n_pages_stack_total, 
+            allocator->properties.n_bytes_page, 
             allocator
     );
     p7r_stack_page_provider_init(
             &(allocator->short_term),
             P7R_STACK_ALLOCATOR_MASTER, 
-            config.n_pages_short_term, 
-            config.n_pages_stack_total, 
-            config.n_bytes_page, 
+            allocator->properties.n_pages_short_term, 
+            allocator->properties.n_pages_stack_total, 
+            allocator->properties.n_bytes_page, 
             allocator
     );
 

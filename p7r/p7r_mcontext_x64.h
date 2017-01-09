@@ -38,7 +38,7 @@ void p7r_mcontext_x64_switch(struct p7r_mcontext_x64 *to, struct p7r_mcontext_x6
 
 static inline
 void *p7r_mcontext_x64_stack_base(void *stack_base, size_t stack_size) {
-    return stack_base + stack_size - 1;
+    return stack_base + stack_size - 2 * sizeof(void);
 }
 
 #endif      // P7R_MCONTEXT_X64_H_
