@@ -220,6 +220,7 @@ struct p7r_stack_allocator_config p7r_stack_allocator_config_adjust(struct p7r_s
     adjust_capacity(config.n_pages_long_term);
     adjust_capacity(config.n_pages_slave);
     return config;
+#undef adjust_capacity
 }
 
 struct p7r_stack_allocator *p7r_stack_allocator_init(struct p7r_stack_allocator *allocator, struct p7r_stack_allocator_config config) {
