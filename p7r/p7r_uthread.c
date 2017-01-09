@@ -165,7 +165,7 @@ struct p7r_uthread *p7r_uthread_init(
     p7r_context_init(
             &(uthread->context), 
             stack_metamark->raw_content_addr, 
-            stack_metamark->n_bytes_page * (stack_metamark->provider->parent->properties.n_pages_stack_total - 2)
+            stack_metamark->n_bytes_page * (stack_metamark->provider->parent->properties.n_pages_stack_user)
     );
     p7r_context_prepare(&(uthread->context), uthread->entrance.real_entrance, uthread->entrance.real_argument);
     return uthread;
@@ -650,7 +650,7 @@ int p7r_init(struct p7r_config config) {
     p7r_context_init(
             &(carriers[0].context), 
             main_sched_stack->raw_content_addr, 
-            main_sched_stack->n_bytes_page * (main_sched_stack->provider->parent->properties.n_pages_stack_total - 2)
+            main_sched_stack->n_bytes_page * (main_sched_stack->provider->parent->properties.n_pages_stack_user)
     );
     p7r_context_prepare(&(carriers[0].context), (void (*)(void *)) p7r_carrier_lifespan, &(carriers[0]));
     list_add_tail(&(main_uthread.linkable), &(carriers[0].scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
