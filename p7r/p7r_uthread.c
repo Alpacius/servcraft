@@ -146,6 +146,7 @@ void p7r_uthread_lifespan(void *uthread_) {
 
     p7r_uthread_detach(self);
     p7r_uthread_change_state_clean(self, P7R_UTHREAD_DYING);
+    schedulers[self->scheduler_index].runners.running = NULL;
 
     // Actually we never return, but that's one of things we would not tell the compiler
     p7r_context_switch(schedulers[self->scheduler_index].runners.carrier_context, &(self->context));
@@ -318,6 +319,11 @@ int p7r_uthread_request_is_null(struct p7r_uthread_request request) {
 
 static
 struct p7r_uthread *sched_resched_target(struct p7r_scheduler *scheduler) {
+    if (scheduler->runners.running != NULL) {
+        struct p7r_uthread *last_target = scheduler->runners.running;
+        list_del(&(last_target->linkable));
+        list_add_tail(&(last_target->linkable), &(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
+    }
     if (list_is_empty(&(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]))) {
         struct p7r_uthread_request request = sched_cherry_pick(scheduler);
         if (p7r_uthread_request_is_null(request))
@@ -326,12 +332,7 @@ struct p7r_uthread *sched_resched_target(struct p7r_scheduler *scheduler) {
         list_add_tail(&(uthread->linkable), &(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
     }
     list_ctl_t *target_reference = scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING].next;
-    struct p7r_uthread *target;
-    scheduler->runners.running = (target = container_of(target_reference, struct p7r_uthread, linkable));
-    list_del(target_reference);
-    return 
-        list_add_tail(target_reference, &(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING])), 
-        target;
+    return scheduler->runners.running = container_of(target_reference, struct p7r_uthread, linkable);
 }
 
 static
