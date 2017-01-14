@@ -31,7 +31,7 @@ struct p7r_stack_hint {
     struct scraft_hashkey hashable;
 };
 
-#define     P7R_STACK_POLICY_DEFAULT        P7R_STACK_SOURCE_SHORT_TERM
+#define     P7R_STACK_POLICY_DEFAULT        P7R_STACK_SOURCE_DEFAULT
 #define     P7R_STACK_POLICY_EDEN           P7R_STACK_SOURCE_SHORT_TERM
 #define     P7R_STACK_POLICY_PRUDENT        P7R_STACK_SOURCE_DEFAULT
 
