@@ -34,6 +34,7 @@ struct p7r_uthread_request {
 #define     P7R_UTHREAD_RUNNING         1
 #define     P7R_UTHREAD_LIMBO           2
 #define     P7R_UTHREAD_DYING           3
+#define     P7R_UTHREAD_BLOCKING        4
 #define     P7R_UTHREAD_IO_READY        (1 << 4)
 #define     P7R_UTHREAD_COMMU_READY     (1 << 5)
 

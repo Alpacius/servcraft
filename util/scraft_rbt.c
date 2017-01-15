@@ -177,7 +177,8 @@ void scraft_rbt_delete(struct scraft_rbtree *tree, struct scraft_rbtree_node *no
 }
 
 void scraft_rbt_detach(struct scraft_rbtree_node *node) {
-    scraft_rbt_delete(node->meta, node);
+    if (node->meta)
+        scraft_rbt_delete(node->meta, node);
 }
 
 struct scraft_rbtree_node *scraft_rbt_find(struct scraft_rbtree *tree, const void *key) {

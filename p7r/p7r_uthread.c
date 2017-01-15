@@ -32,6 +32,7 @@ struct p7r_timer_core *p7r_timer_core_init(struct p7r_timer_core *timer, uint64_
     timer->uthread = uthread;
     timer->timestamp = timestamp;
     timer->maplink.key_ref = &(timer->timestamp);
+    timer->maplink.meta = NULL;
     return timer;
 }
 
@@ -217,7 +218,7 @@ int sched_bus_refresh(struct p7r_scheduler *scheduler) {
         uint64_t current_time_before = get_timestamp_ms_current();
         struct p7r_timer_core *timer_earliest = p7r_timer_peek_earliest(&(scheduler->bus.timers));
         timeout = timer_earliest ? (timer_earliest->timestamp - current_time_before) : -1;
-        (timeout < 1) && (timeout = 0);
+        ((timer_earliest) && (timeout < 1)) && (timeout = 0);
     }
     (!list_is_empty(&(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]))) && (timeout = 0);
 
@@ -528,12 +529,14 @@ void p7r_blocking_point(void) {
     struct p7r_uthread *self = self_scheduler->runners.running;
 
     list_del(&(self->linkable));
+    p7r_uthread_change_state_clean(self, P7R_UTHREAD_BLOCKING);
     list_add_tail(&(self->linkable), &(self_scheduler->runners.sched_queues[P7R_SCHED_QUEUE_BLOCKING]));
     self_scheduler->runners.running = NULL;
 
     struct p7r_uthread *target;
     do {
         sched_bus_refresh(self_scheduler);
+        // FIXME force reload uthread if any request available
         target = sched_resched_target(self_scheduler);
     } while (target == NULL);
 }
@@ -603,6 +606,7 @@ struct p7r_delegation p7r_delegate(uint64_t events, ...) {
 
     va_end(arguments);
 
+    // XXX as-fair-as-possible schedule
     p7r_blocking_point();
 
     return delegation;
