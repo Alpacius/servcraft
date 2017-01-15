@@ -540,6 +540,9 @@ void p7r_blocking_point(void) {
         // FIXME force reload uthread within resource bound
         target = sched_resched_target(self_scheduler);
     } while (target == NULL);
+
+    if (target != self)
+        p7r_uthread_switch(target, self);
 }
 
 static inline
