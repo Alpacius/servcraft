@@ -529,6 +529,7 @@ void p7r_blocking_point(void) {
     struct p7r_uthread *self = self_scheduler->runners.running;
 
     list_del(&(self->linkable));
+    // TODO refactor - extract common code snippet
     p7r_uthread_change_state_clean(self, P7R_UTHREAD_BLOCKING);
     list_add_tail(&(self->linkable), &(self_scheduler->runners.sched_queues[P7R_SCHED_QUEUE_BLOCKING]));
     self_scheduler->runners.running = NULL;
@@ -536,7 +537,7 @@ void p7r_blocking_point(void) {
     struct p7r_uthread *target;
     do {
         sched_bus_refresh(self_scheduler);
-        // FIXME force reload uthread if any request available
+        // FIXME force reload uthread within resource bound
         target = sched_resched_target(self_scheduler);
     } while (target == NULL);
 }
