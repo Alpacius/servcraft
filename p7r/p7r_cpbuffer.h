@@ -39,6 +39,7 @@ list_ctl_t *cp_buffer_consume(struct p7r_cpbuffer *queue) {
 static inline
 void cp_buffer_produce(struct p7r_cpbuffer *queue, list_ctl_t *product) {
     __atomic_or_fetch(&(queue->index_producer), CP_BUFFER_PRODUCER_BUSY, __ATOMIC_RELEASE);
+    __atomic_thread_fence(__ATOMIC_ACQ_REL);
     {
         list_ctl_t *target_queue = &(queue->buffers[cp_buffer_normalized_index(cp_buffer_index_of(queue))]);
         list_add_tail(product, target_queue);
