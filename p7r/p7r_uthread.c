@@ -147,6 +147,7 @@ void p7r_uthread_lifespan(void *uthread_) {
 
     p7r_uthread_detach(self);
     p7r_uthread_change_state_clean(self, P7R_UTHREAD_DYING);
+    list_add_tail(&(self->linkable), &(schedulers[self->scheduler_index].runners.sched_queues[P7R_SCHED_QUEUE_DYING]));
     schedulers[self->scheduler_index].runners.running = NULL;
 
     // Actually we never return, but that's one of things we would not tell the compiler
