@@ -7,7 +7,7 @@
 
 #include    "./p7r_timing.h"
 #include    "./p7r_cpbuffer.h"
-#include    "./p7r_stack_allocator.h"
+#include    "./p7r_stack_allocator_adaptor.h"
 #include    "./p7r_context.h"
 
 

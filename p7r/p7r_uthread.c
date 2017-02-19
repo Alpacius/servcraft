@@ -1,6 +1,5 @@
 #include    "./p7r_uthread.h"
 #include    "./p7r_root_alloc.h"
-#include    "./p7r_stack_hint.h"
 #include    "./p7r_timing.h"
 
 
@@ -165,11 +164,7 @@ struct p7r_uthread *p7r_uthread_init(
     uthread->stack_metamark = stack_metamark;
     (uthread->entrance.user_entrance = user_entrance), (uthread->entrance.user_argument = user_argument);
     (uthread->entrance.real_entrance = p7r_uthread_lifespan), (uthread->entrance.real_argument = uthread);
-    p7r_context_init(
-            &(uthread->context), 
-            stack_metamark->raw_content_addr, 
-            stack_metamark->n_bytes_page * (stack_metamark->provider->parent->properties.n_pages_stack_user)
-    );
+    p7r_context_init(&(uthread->context), stack_base_of(stack_metamark), stack_size_of(stack_metamark));
     p7r_context_prepare(&(uthread->context), uthread->entrance.real_entrance, uthread->entrance.real_argument);
     return uthread;
 }
@@ -187,17 +182,17 @@ struct p7r_uthread *p7r_uthread_new(
         void *user_argument, 
         struct p7r_stack_allocator *allocator, 
         uint8_t stack_alloc_policy) {
-    struct p7r_stack_metamark *stack_meta = p7r_stack_allocate_hintless(allocator, stack_alloc_policy);
+    struct p7r_stack_metamark *stack_meta = stack_metamark_create(allocator, stack_alloc_policy);
     if (unlikely(stack_meta == NULL))
         return NULL;
-    struct p7r_uthread *uthread = (struct p7r_uthread *) stack_meta->user_metadata;
+    struct p7r_uthread *uthread = (struct p7r_uthread *) stack_meta_of(stack_meta);
     return p7r_uthread_init(uthread, scheduler_index, user_entrance, user_argument, stack_meta);
 }
 
 static inline
 void p7r_uthread_delete(struct p7r_uthread *uthread) {
     struct p7r_stack_metamark *stack_meta = p7r_uthread_ruin(uthread)->stack_metamark;
-    p7r_stack_free(stack_meta);
+    stack_metamark_destroy(stack_meta);
 }
 
 static
@@ -355,7 +350,7 @@ struct p7r_scheduler *p7r_scheduler_init(
 
     (scheduler->index = index), (scheduler->n_carriers = n_carriers);
     scheduler->runners.carrier_context = carrier_context;
-    p7r_stack_allocator_init(&(scheduler->runners.stack_allocator), config);
+    stack_allocator_init(&(scheduler->runners.stack_allocator), config);
 
     for (uint32_t queue_index = 0; queue_index < sizeof(scheduler->runners.sched_queues) / sizeof(list_ctl_t); queue_index++)
         init_list_head(&(scheduler->runners.sched_queues[queue_index]));
@@ -394,7 +389,7 @@ struct p7r_scheduler *p7r_scheduler_ruin(struct p7r_scheduler *scheduler) {
     __auto_type allocator = p7r_root_alloc_get_proxy();
 
     // All uthreads will be destroyed with the corresponding stack allocator
-    p7r_stack_allocator_ruin(&(scheduler->runners.stack_allocator));
+    stack_allocator_ruin(&(scheduler->runners.stack_allocator));
 
     scraft_deallocate(allocator, scheduler->bus.epoll_events);
     close(scheduler->bus.fd_epoll);
@@ -657,7 +652,7 @@ int p7r_init(struct p7r_config config) {
     }
     
     struct p7r_stack_metamark *main_sched_stack = 
-        p7r_stack_allocate_hintless(&(carriers[0].scheduler->runners.stack_allocator), P7R_STACK_POLICY_DEFAULT);
+        stack_metamark_create(&(carriers[0].scheduler->runners.stack_allocator), P7R_STACK_POLICY_DEFAULT);
     p7r_context_init(
             &(carriers[0].context), 
             main_sched_stack->raw_content_addr, 

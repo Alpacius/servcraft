@@ -11,7 +11,8 @@
 #define     P7R_STACK_SOURCE_DEFAULT        0
 #define     P7R_STACK_SOURCE_SHORT_TERM     1
 
-struct p7r_stack_allocator;
+#include    "./p7r_stack_metamark.h"
+
 
 struct p7r_stack_allocator_config {
     uint32_t n_pages_long_term, n_pages_short_term;
@@ -39,14 +40,6 @@ struct p7r_stack_allocator {
     struct p7r_stack_page_provider long_term, short_term;
     struct p7r_stack_page_slaver slaves;
 };
-
-struct p7r_stack_metamark {
-    struct p7r_stack_page_provider *provider;
-    uint32_t n_bytes_page;
-    char *raw_content_addr, *red_zone_addr;
-    list_ctl_t linkable;
-    char user_metadata[];
-} __attribute__((packed));
 
 struct p7r_stack_allocator *p7r_stack_allocator_init(struct p7r_stack_allocator *allocator, struct p7r_stack_allocator_config config);
 void p7r_stack_allocator_ruin(struct p7r_stack_allocator *allocator);
