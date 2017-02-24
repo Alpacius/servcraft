@@ -31,9 +31,6 @@ struct p7r_context *p7r_context_prepare(struct p7r_context *context, void (*entr
     return context;
 }
 
-static inline
-void p7r_context_switch(struct p7r_context *to, struct p7r_context *from) {
-    p7r_mcontext_switch(&(to->mcontext), &(from->mcontext));
-}
+#define p7r_context_switch(to_, from_)  p7r_mcontext_switch(&((to_)->mcontext), &((from_)->mcontext))
 
 #endif      // P7R_CONTEXT_H_

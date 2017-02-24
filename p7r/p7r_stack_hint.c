@@ -82,12 +82,12 @@ struct p7r_stack_metamark *p7r_stack_allocate_with_hint(struct p7r_stack_allocat
 struct p7r_stack_metamark *p7r_stack_allocate_hintless(struct p7r_stack_allocator *allocator, uint8_t policy) {
     struct p7r_stack_metamark *stack_mark = NULL;
     switch(policy) {
-        case P7R_STACK_POLICY_EDEN:
-            stack_mark = p7r_stack_page_allocate(&(allocator->short_term));
-            if (stack_mark)
-                return stack_mark;
         case P7R_STACK_POLICY_PRUDENT:
             stack_mark = p7r_stack_page_allocate(&(allocator->long_term));
+            if (stack_mark)
+                return stack_mark;
+        case P7R_STACK_POLICY_EDEN:
+            stack_mark = p7r_stack_page_allocate(&(allocator->short_term));
             if (stack_mark)
                 return stack_mark;
         default:

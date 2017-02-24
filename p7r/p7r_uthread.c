@@ -581,8 +581,10 @@ void p7r_yield(void) {
 
 int p7r_uthread_create(void (*entrance)(void *), void *argument) {
     int remote_created = p7r_uthread_create_(entrance, argument);
+    /*
     if (!remote_created)
         p7r_yield();
+        */
     return remote_created;
 }
 
@@ -653,11 +655,7 @@ int p7r_init(struct p7r_config config) {
     
     struct p7r_stack_metamark *main_sched_stack = 
         stack_metamark_create(&(carriers[0].scheduler->runners.stack_allocator), P7R_STACK_POLICY_DEFAULT);
-    p7r_context_init(
-            &(carriers[0].context), 
-            main_sched_stack->raw_content_addr, 
-            main_sched_stack->n_bytes_page * (main_sched_stack->provider->parent->properties.n_pages_stack_user)
-    );
+    p7r_context_init(&(carriers[0].context), stack_meta_of(main_sched_stack), stack_size_of(main_sched_stack));
     p7r_context_prepare(&(carriers[0].context), (void (*)(void *)) p7r_carrier_lifespan, &(carriers[0]));
     list_add_tail(&(main_uthread.linkable), &(carriers[0].scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
     carriers[0].scheduler->runners.running = &main_uthread;

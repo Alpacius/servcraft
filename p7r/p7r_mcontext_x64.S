@@ -8,6 +8,7 @@ p7r_mcontext_x64_init:
     movq    %rsi, 128(%rdi)
     movq    %rcx, 72(%rdi)
     movq    %rdx, (%rdi)
+    movq    %rsi, (%rcx)
     ret
 
 // void p7r_mcontext_x64_switch(struct p7r_mcontext_x64 *to, struct p7r_mcontext_x64 *from);
@@ -28,9 +29,7 @@ p7r_mcontext_x64_switch:
     movq    %r13, 104(%rsi)
     movq    %r14, 112(%rsi)
     movq    %r15, 120(%rsi)
-    popq    %rcx                // old rip
     movq    %rsp, 72(%rsi)
-    movq    %rcx, 128(%rsi)
 
     movq    8(%rdi), %rsi
     movq    16(%rdi), %rdx
@@ -47,7 +46,6 @@ p7r_mcontext_x64_switch:
     movq    104(%rdi), %r13
     movq    112(%rdi), %r14
     movq    120(%rdi), %r15
-    pushq   128(%rdi)           // new rip
     movq    (%rdi), %rdi
 
     ret
