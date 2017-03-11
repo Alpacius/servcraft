@@ -183,7 +183,7 @@ struct p7r_uthread *p7r_uthread_new(
         struct p7r_stack_allocator *allocator, 
         uint8_t stack_alloc_policy) {
     struct p7r_stack_metamark *stack_meta = stack_metamark_create(allocator, stack_alloc_policy);
-    if (unlikely(stack_meta == NULL))
+    if (unlikely(stack_meta == NULL)) 
         return NULL;
     struct p7r_uthread *uthread = (struct p7r_uthread *) stack_meta_of(stack_meta);
     return p7r_uthread_init(uthread, scheduler_index, user_entrance, user_argument, stack_meta);
@@ -300,13 +300,20 @@ struct p7r_uthread *sched_uthread_from_request(
         struct p7r_scheduler *scheduler, 
         struct p7r_uthread_request request, 
         uint8_t stack_alloc_policy) {
-    return 
+    struct p7r_uthread *uthread = 
         p7r_uthread_new(
                 scheduler->index, 
                 request.user_entrance, 
                 request.user_argument, 
                 &(scheduler->runners.stack_allocator),
                 stack_alloc_policy);
+    if (unlikely(uthread == NULL)) {
+        if (request.user_argument_dtor)
+            request.user_argument_dtor(request.user_argument);
+        return NULL;
+    }
+    return uthread;
+
 }
 
 static inline
@@ -494,7 +501,7 @@ void p7r_u2cc_message_post(uint32_t dst_index, struct p7r_internal_message *mess
 // api & basement
 
 static
-int p7r_uthread_create_(void (*entrance)(void *), void *argument) {
+int p7r_uthread_create_(void (*entrance)(void *), void *argument, void (*dtor)(void *)) {
     static uint32_t balance_index = 0;
 
     uint32_t target_carrier_index = __atomic_add_fetch(&balance_index, 1, __ATOMIC_ACQ_REL);
@@ -507,7 +514,7 @@ int p7r_uthread_create_(void (*entrance)(void *), void *argument) {
         if (unlikely(request_message == NULL))
             return -1;
         struct p7r_uthread_request *request = (struct p7r_uthread_request *) &(request_message->content_buffer);
-        (request->user_entrance = entrance), (request->user_argument = argument);
+        (request->user_entrance = entrance), (request->user_argument = argument), (request->user_argument_dtor = dtor);
         p7r_u2cc_message_post(target_carrier_index % n_carriers, request_message);
     } else {
         struct p7r_uthread_request request = { .user_entrance = entrance, .user_argument = argument };
@@ -579,12 +586,10 @@ void p7r_yield(void) {
     p7r_uthread_switch(target, self);
 }
 
-int p7r_uthread_create(void (*entrance)(void *), void *argument) {
-    int remote_created = p7r_uthread_create_(entrance, argument);
-    /*
-    if (!remote_created)
+int p7r_uthread_create(void (*entrance)(void *), void *argument, void (*dtor)(void *), int yield) {
+    int remote_created = p7r_uthread_create_(entrance, argument, dtor);
+    if (yield && !remote_created)
         p7r_yield();
-        */
     return remote_created;
 }
 

@@ -27,6 +27,7 @@ struct p7r_uthread {
 struct p7r_uthread_request {
     void (*user_entrance)(void *);
     void *user_argument;
+    void (*user_argument_dtor)(void *);
     list_ctl_t linkable;
 };
 
@@ -150,6 +151,6 @@ struct p7r_config {
 int p7r_init(struct p7r_config config);
 struct p7r_delegation p7r_delegate(uint64_t events, ...);
 void p7r_yield(void);
-int p7r_uthread_create(void (*entrance)(void *), void *argument);
+int p7r_uthread_create(void (*entrance)(void *), void *argument, void (*dtor)(void *), int yield);
 
 #endif      // P7R_UTHREAD_H_
