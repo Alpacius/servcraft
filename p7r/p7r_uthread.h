@@ -92,6 +92,7 @@ struct p7r_scheduler {
         struct p7r_uthread *running;
         struct p7r_context *carrier_context;
         struct p7r_stack_allocator stack_allocator;
+        uint64_t tokens;
     } runners;
     struct {
         int fd_epoll;
@@ -103,6 +104,12 @@ struct p7r_scheduler {
         struct epoll_event *epoll_events;
         int n_epoll_events;
     } bus;
+    struct {
+        struct {
+            int enabled;
+            uint64_t max_tokens;
+        } swarm;
+    } policy;
 };
 
 #define     P7R_SCHEDULER_BORN          0
@@ -139,6 +146,10 @@ struct p7r_config {
     struct {
         uint32_t n_carriers;
         int event_buffer_capacity;
+        struct {
+            int enabled;
+            uint64_t max_tokens;
+        } swarm;
     } concurrency;
     struct {
         void *(*allocate)(size_t);
@@ -152,5 +163,6 @@ int p7r_init(struct p7r_config config);
 struct p7r_delegation p7r_delegate(uint64_t events, ...);
 void p7r_yield(void);
 int p7r_uthread_create(void (*entrance)(void *), void *argument, void (*dtor)(void *), int yield);
+
 
 #endif      // P7R_UTHREAD_H_

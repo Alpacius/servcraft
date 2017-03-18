@@ -223,6 +223,10 @@ struct p7r_stack_allocator_config p7r_stack_allocator_config_adjust(struct p7r_s
 #undef adjust_capacity
 }
 
+double p7r_stack_allocator_usage(struct p7r_stack_allocator *allocator) {
+    return ((double) allocator->short_term.size) / ((double) allocator->short_term.capacity);
+}
+
 struct p7r_stack_allocator *p7r_stack_allocator_init(struct p7r_stack_allocator *allocator, struct p7r_stack_allocator_config config) {
     allocator->properties = p7r_stack_allocator_config_adjust(&config);
     p7r_stack_page_slaver_init(&(allocator->slaves));

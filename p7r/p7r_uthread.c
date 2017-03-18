@@ -216,6 +216,7 @@ int sched_bus_refresh(struct p7r_scheduler *scheduler) {
         timeout = timer_earliest ? (timer_earliest->timestamp - current_time_before) : -1;
         ((timer_earliest) && (timeout < 1)) && (timeout = 0);
     }
+
     (!list_is_empty(&(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]))) && (timeout = 0);
 
     int n_active_fds = epoll_wait(scheduler->bus.fd_epoll, scheduler->bus.epoll_events, scheduler->bus.n_epoll_events, timeout);
@@ -321,6 +322,18 @@ int p7r_uthread_request_is_null(struct p7r_uthread_request request) {
     return (request.user_entrance == NULL);
 }
 
+static inline
+int swarm_sched_available(struct p7r_scheduler *scheduler) {
+    if (scheduler->policy.swarm.enabled && scheduler->runners.tokens)
+        return scheduler->runners.tokens--, 1;
+    return 0;
+}
+
+static inline
+void swarm_sched_refill(struct p7r_scheduler *scheduler) {
+    (scheduler->runners.tokens < scheduler->policy.swarm.max_tokens) && (scheduler->runners.tokens++);
+}
+
 static
 struct p7r_uthread *sched_resched_target(struct p7r_scheduler *scheduler) {
     if (scheduler->runners.running != NULL) {
@@ -328,11 +341,14 @@ struct p7r_uthread *sched_resched_target(struct p7r_scheduler *scheduler) {
         list_del(&(last_target->linkable));
         list_add_tail(&(last_target->linkable), &(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
     }
-    if (list_is_empty(&(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]))) {
+    // XXX it depends
+    if (swarm_sched_available(scheduler) || list_is_empty(&(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]))) {
         struct p7r_uthread_request request = sched_cherry_pick(scheduler);
         if (p7r_uthread_request_is_null(request))
             return NULL;
         struct p7r_uthread *uthread = sched_uthread_from_request(scheduler, request, P7R_STACK_POLICY_DEFAULT);
+        if (!uthread && request.user_argument_dtor)
+            request.user_argument_dtor(request.user_argument);
         list_add_tail(&(uthread->linkable), &(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
     }
     list_ctl_t *target_reference = scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING].next;
@@ -459,6 +475,8 @@ void *p7r_carrier_lifespan(void *self_argument) {
             struct p7r_uthread *uthread = sched_uthread_from_request(scheduler, request, P7R_STACK_POLICY_DEFAULT);
             if (uthread)
                 list_add_tail(&(uthread->linkable), &(scheduler->runners.sched_queues[P7R_SCHED_QUEUE_RUNNING]));
+            else if (request.user_argument_dtor)
+                request.user_argument_dtor(request.user_argument);
         }
         struct p7r_uthread *target = sched_resched_target(scheduler);
         if (target)
@@ -581,6 +599,7 @@ int p7r_delegation_timed(struct p7r_scheduler *scheduler, struct p7r_delegation 
 void p7r_yield(void) {
     struct p7r_scheduler *self_scheduler = self_carrier->scheduler;
     struct p7r_uthread *self = self_scheduler->runners.running;
+    swarm_sched_refill(self_scheduler);
     sched_bus_refresh(self_scheduler);
     struct p7r_uthread *target = sched_resched_target(self_scheduler);
     p7r_uthread_switch(target, self);
@@ -620,6 +639,8 @@ struct p7r_delegation p7r_delegate(uint64_t events, ...) {
 }
 
 int p7r_init(struct p7r_config config) {
+    srand((unsigned) time(NULL));
+
     {
         __auto_type allocator_real = p7r_root_alloc_get_allocator();
         allocator_real->allocator_.closure_ = config.root_allocator.allocate;
@@ -644,6 +665,9 @@ int p7r_init(struct p7r_config config) {
                 config.stack_allocator, 
                 config.concurrency.event_buffer_capacity
         );
+        // TODO init policy
+        (schedulers[index].policy.swarm.enabled = config.concurrency.swarm.enabled),
+            (schedulers[index].policy.swarm.max_tokens = config.concurrency.swarm.max_tokens);
     }
     {
         pthread_barrierattr_t barrier_attribute;

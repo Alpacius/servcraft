@@ -26,6 +26,8 @@
 #define     stack_base_of(metamark_)    ((metamark_)->raw_content_addr)
 #define     stack_meta_of(metamark_)    ((metamark_)->user_metadata)
 
+#define     stack_usage_of              p7r_stack_allocator_usage
+
 #else
 
 #error      "Split stack is not supported yet."

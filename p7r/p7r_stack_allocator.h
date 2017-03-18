@@ -51,6 +51,8 @@ struct p7r_stack_metamark *p7r_stack_page_allocate_fallback(struct p7r_stack_all
 struct p7r_stack_metamark *p7r_stack_page_allocate(struct p7r_stack_page_provider *provider);
 void p7r_stack_page_free(struct p7r_stack_metamark *mark);
 
+double p7r_stack_allocator_usage(struct p7r_stack_allocator *allocator);
+
 
 
 #endif      // P7R_STACK_ALLOCATOR_
