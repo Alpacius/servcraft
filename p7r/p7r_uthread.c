@@ -510,9 +510,9 @@ struct p7r_internal_message *p7r_u2cc_message_raw(uint64_t base_type, size_t siz
 }
 
 static
-void p7r_u2cc_message_post(uint32_t dst_index, struct p7r_internal_message *message) {
+void p7r_u2cc_message_post(uint32_t dst_index, uint32_t src_index, struct p7r_internal_message *message) {
     struct p7r_scheduler *destination = carriers[dst_index].scheduler;
-    cp_buffer_produce(&(destination->bus.message_boxes[self_carrier->index]), &(message->linkable));
+    cp_buffer_produce(&(destination->bus.message_boxes[src_index]), &(message->linkable));
     {
         uint64_t event_notification = 1;
         write(destination->bus.fd_notification, &event_notification, sizeof(uint64_t));
@@ -535,7 +535,7 @@ int p7r_uthread_create_(void (*entrance)(void *), void *argument, void (*dtor)(v
             return -1;
         struct p7r_uthread_request *request = (struct p7r_uthread_request *) &(request_message->content_buffer);
         (request->user_entrance = entrance), (request->user_argument = argument), (request->user_argument_dtor = dtor);
-        p7r_u2cc_message_post(target_carrier_index % n_carriers, request_message);
+        p7r_u2cc_message_post(target_carrier_index % n_carriers, self_carrier->index, request_message);
     } else {
         struct p7r_uthread_request request = { .user_entrance = entrance, .user_argument = argument };
         struct p7r_uthread *uthread = sched_uthread_from_request(self_carrier->scheduler, request, P7R_STACK_POLICY_DEFAULT);
@@ -596,6 +596,20 @@ int p7r_delegation_timed(struct p7r_scheduler *scheduler, struct p7r_delegation 
     p7r_timer_core_init_diff(&(delegation->checked_events.timer.measurement), dt, scheduler->runners.running);
     (delegation->checked_events.timer.enabled = 1), (delegation->checked_events.timer.triggered = 0);
     return 1;
+}
+
+int p7r_uthread_create_foreign(uint32_t index, void (*entrance)(void *), void *argument, void (*dtor)(void *)) {
+    uint32_t target_carrier_index = next_balance_index;
+    uint32_t n_carriers = carriers[target_carrier_index].scheduler->n_carriers;
+
+    struct p7r_internal_message *request_message = p7r_u2cc_message_raw(P7R_MESSAGE_UTHREAD_REQUEST, sizeof(struct p7r_uthread_request));
+    if (unlikely(request_message == NULL))
+        return -1;
+    struct p7r_uthread_request *request = (struct p7r_uthread_request *) &(request_message->content_buffer);
+    (request->user_entrance = entrance), (request->user_argument = argument), (request->user_argument_dtor = dtor);
+    p7r_u2cc_message_post(target_carrier_index % n_carriers, index, request_message);
+
+    return 0;
 }
 
 void p7r_yield(void) {
