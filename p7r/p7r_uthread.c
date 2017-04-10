@@ -28,8 +28,12 @@ static uint32_t balance_index = 0;
 
 // basic concepts
 
-struct p7r_carrier *p7r_carriers() {
+struct p7r_carrier *p7r_carriers(void) {
     return carriers;
+}
+
+uint32_t balanced_target_carrier(void) {
+    return next_balance_index;
 }
 
 
@@ -605,8 +609,7 @@ int p7r_delegation_timed(struct p7r_scheduler *scheduler, struct p7r_delegation 
     return 1;
 }
 
-int p7r_uthread_create_foreign(void (*entrance)(void *), void *argument, void (*dtor)(void *)) {
-    uint32_t target_carrier_index = next_balance_index;
+int p7r_uthread_create_foreign(uint32_t target_carrier_index, void (*entrance)(void *), void *argument, void (*dtor)(void *)) {
     uint32_t n_carriers = carriers[target_carrier_index].scheduler->n_carriers;
 
     struct p7r_internal_message *request_message = p7r_u2cc_message_raw(P7R_MESSAGE_UTHREAD_REQUEST, sizeof(struct p7r_uthread_request));
