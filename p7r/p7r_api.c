@@ -18,6 +18,7 @@ void p7r_poolized_main_entrance(void *argument) {
     }
 }
 
+static
 int p7r_poolize(struct p7r_config config) {
     if (pipe(meta_singleton.startup_channel) == -1)
         return -1;
