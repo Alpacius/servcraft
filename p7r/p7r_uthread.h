@@ -165,7 +165,9 @@ struct p7r_delegation p7r_delegate(uint64_t events, ...);
 void p7r_yield(void);
 int p7r_uthread_create(void (*entrance)(void *), void *argument, void (*dtor)(void *), int yield);
 
-int p7r_uthread_create_foreign(uint32_t index, void (*entrance)(void *), void *argument, void (*dtor)(void *));
+int p7r_uthread_create_foreign(void (*entrance)(void *), void *argument, void (*dtor)(void *));
+
+struct p7r_carrier *p7r_carriers();
 
 
 #endif      // P7R_UTHREAD_H_

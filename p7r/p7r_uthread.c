@@ -26,6 +26,13 @@ static uint32_t balance_index = 0;
 #define next_balance_index __atomic_add_fetch(&balance_index, 1, __ATOMIC_ACQ_REL)
 
 
+// basic concepts
+
+struct p7r_carrier *p7r_carriers() {
+    return carriers;
+}
+
+
 // timers
 
 static
@@ -598,7 +605,7 @@ int p7r_delegation_timed(struct p7r_scheduler *scheduler, struct p7r_delegation 
     return 1;
 }
 
-int p7r_uthread_create_foreign(uint32_t index, void (*entrance)(void *), void *argument, void (*dtor)(void *)) {
+int p7r_uthread_create_foreign(void (*entrance)(void *), void *argument, void (*dtor)(void *)) {
     uint32_t target_carrier_index = next_balance_index;
     uint32_t n_carriers = carriers[target_carrier_index].scheduler->n_carriers;
 
@@ -607,7 +614,7 @@ int p7r_uthread_create_foreign(uint32_t index, void (*entrance)(void *), void *a
         return -1;
     struct p7r_uthread_request *request = (struct p7r_uthread_request *) &(request_message->content_buffer);
     (request->user_entrance = entrance), (request->user_argument = argument), (request->user_argument_dtor = dtor);
-    p7r_u2cc_message_post(target_carrier_index % n_carriers, index, request_message);
+    p7r_u2cc_message_post(target_carrier_index % n_carriers, carriers[target_carrier_index % n_carriers].index, request_message);
 
     return 0;
 }
