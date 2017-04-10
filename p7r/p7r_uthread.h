@@ -100,6 +100,7 @@ struct p7r_scheduler {
         struct p7r_delegation notification;
         int consumed;
         struct p7r_cpbuffer *message_boxes;
+        struct p7r_cpbuffer *foreign_message_box;
         struct p7r_timer_queue timers;
         struct epoll_event *epoll_events;
         int n_epoll_events;

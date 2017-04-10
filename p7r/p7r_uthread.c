@@ -21,6 +21,9 @@ static struct p7r_carrier *carriers;
 static pthread_barrier_t carrier_barrier;
 static __thread struct p7r_carrier *self_carrier;
 static struct p7r_uthread main_uthread = { .scheduler_index = 0, .status = P7R_UTHREAD_RUNNING };
+static uint32_t balance_index = 0;
+
+#define next_balance_index __atomic_add_fetch(&balance_index, 1, __ATOMIC_ACQ_REL)
 
 
 // timers
@@ -394,8 +397,9 @@ struct p7r_scheduler *p7r_scheduler_init(
     }
     scheduler->bus.consumed = 1;
     scheduler->bus.message_boxes = scraft_allocate(allocator, sizeof(struct p7r_cpbuffer) * n_carriers);
-    for (uint32_t index = 0; index < n_carriers; index++)
-        cp_buffer_init(&(scheduler->bus.message_boxes[index]));
+    for (uint32_t message_box_index = 0; message_box_index < n_carriers; message_box_index++)
+        cp_buffer_init(&(scheduler->bus.message_boxes[message_box_index]));
+    scheduler->bus.foreign_message_box = &(scheduler->bus.message_boxes[index]);
     p7r_timer_queue_init(&(scheduler->bus.timers));
     scheduler->bus.n_epoll_events = event_buffer_capacity;      // XXX We do not check anything - keep your sanity
     scheduler->bus.epoll_events = scraft_allocate(allocator, sizeof(struct epoll_event) * event_buffer_capacity);
@@ -520,9 +524,7 @@ void p7r_u2cc_message_post(uint32_t dst_index, struct p7r_internal_message *mess
 
 static
 int p7r_uthread_create_(void (*entrance)(void *), void *argument, void (*dtor)(void *)) {
-    static uint32_t balance_index = 0;
-
-    uint32_t target_carrier_index = __atomic_add_fetch(&balance_index, 1, __ATOMIC_ACQ_REL);
+    uint32_t target_carrier_index = next_balance_index;
     uint32_t n_carriers = self_carrier->scheduler->n_carriers;
 
     int remote_created;
