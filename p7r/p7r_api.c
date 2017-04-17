@@ -4,8 +4,11 @@
 
 static
 struct p7r_poolized_meta {
+    pthread_t main_thread;
+    int pool_alive;
     int startup_channel[2];
-} meta_singleton;
+    pthread_spinlock_t *foreign_request_mutex;
+} meta_singleton = { .pool_alive = 0 };
 
 
 static
@@ -19,11 +22,51 @@ void p7r_poolized_main_entrance(void *argument) {
 }
 
 static
-int p7r_poolize(struct p7r_config config) {
-    if (pipe(meta_singleton.startup_channel) == -1)
+int p7r_poolize_(struct p7r_config config) {
+    __auto_type allocator = p7r_root_alloc_get_proxy();
+    uint32_t n_carriers = p7r_n_carriers();
+    if (unlikely((meta_singleton.foreign_request_mutex = scraft_allocate(allocator, sizeof(pthread_spinlock_t) * n_carriers)) == NULL))
         return -1;
+    for (uint32_t target_index = 0; target_index < n_carriers; target_index++)
+        pthread_spin_init(&(meta_singleton.foreign_request_mutex[target_index]), PTHREAD_PROCESS_PRIVATE);
+    if (pipe(meta_singleton.startup_channel) == -1) {
+        scraft_deallocate(allocator, (void *) meta_singleton.foreign_request_mutex);
+        return -1;
+    }
     int ret = p7r_init(config);
-    if (ret < 0)
+    if (ret < 0) {
+        scraft_deallocate(allocator, (void *) meta_singleton.foreign_request_mutex);
         return close(meta_singleton.startup_channel[0]), close(meta_singleton.startup_channel[1]), ret;
+    }
+    __atomic_store_n(&(meta_singleton.pool_alive), 1, __ATOMIC_RELAXED);
     return p7r_poolized_main_entrance(&meta_singleton), 0;
+}
+
+static
+void *p7r_poolized_main_thread(void *config_argument) {
+    if (unlikely(p7r_poolize_(*((struct p7r_config *) config_argument)) < 0))
+        __atomic_store_n(&(meta_singleton.pool_alive), -1, __ATOMIC_RELAXED);
+    return NULL;
+}
+
+int p7r_poolization_status(void) {
+    return __atomic_load_n(&(meta_singleton.pool_alive), __ATOMIC_RELAXED);
+}
+
+int p7r_poolize(struct p7r_config config) {
+    pthread_attr_t detach_attr;
+    pthread_attr_init(&detach_attr);
+    pthread_attr_setdetachstate(&detach_attr, PTHREAD_CREATE_DETACHED);
+    return pthread_create(&(meta_singleton.main_thread), &detach_attr, p7r_poolized_main_thread, &config);
+}
+
+int p7r_execute(void (*entrance)(void *), void *argument, void (*dtor)(void *)) {
+    uint32_t target = balanced_target_carrier();
+    int ret = -1;
+    pthread_spin_lock(&(meta_singleton.foreign_request_mutex[target]));
+    {
+        ret = p7r_uthread_create_foreign(target, entrance, argument, dtor);
+    }
+    pthread_spin_unlock(&(meta_singleton.foreign_request_mutex[target]));
+    return ret;
 }

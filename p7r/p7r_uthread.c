@@ -36,6 +36,10 @@ uint32_t balanced_target_carrier(void) {
     return next_balance_index;
 }
 
+uint32_t p7r_n_carriers(void) {
+    return carriers ? carriers[0].scheduler->n_carriers : 0;
+}
+
 
 // timers
 

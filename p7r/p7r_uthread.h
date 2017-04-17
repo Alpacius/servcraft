@@ -169,6 +169,7 @@ int p7r_uthread_create_foreign(uint32_t target_carrier_index, void (*entrance)(v
 
 struct p7r_carrier *p7r_carriers();
 uint32_t balanced_target_carrier(void);
+uint32_t p7r_n_carriers(void);
 
 
 #endif      // P7R_UTHREAD_H_
