@@ -32,12 +32,13 @@ struct p7r_carrier *p7r_carriers(void) {
     return carriers;
 }
 
-uint32_t balanced_target_carrier(void) {
-    return next_balance_index;
-}
-
 uint32_t p7r_n_carriers(void) {
     return carriers ? carriers[0].scheduler->n_carriers : 0;
+}
+
+uint32_t balanced_target_carrier(void) {
+    // TODO rewrite
+    return next_balance_index % p7r_n_carriers();
 }
 
 
@@ -272,15 +273,13 @@ int sched_bus_refresh(struct p7r_scheduler *scheduler) {
 
     // Phase 4 - iuc/u2cc handling
     for (uint32_t carrier_index = 0; carrier_index < scheduler->n_carriers; carrier_index++) {
-        if (carrier_index != scheduler->index) {
-            list_ctl_t *target_queue = cp_buffer_consume(&(scheduler->bus.message_boxes[carrier_index]));
-            scheduler->bus.consumed &= scheduler->bus.message_boxes[carrier_index].consuming;
-            list_ctl_t *p, *t;
-            list_foreach_remove(p, target_queue, t) {
-                list_del(t);
-                struct p7r_internal_message *message = container_of(t, struct p7r_internal_message, linkable);
-                p7r_internal_handlers[P7R_MESSAGE_REAL_TYPE(message->type)](scheduler, message);    // XXX highly dangerous
-            }
+        list_ctl_t *target_queue = cp_buffer_consume(&(scheduler->bus.message_boxes[carrier_index]));
+        scheduler->bus.consumed &= scheduler->bus.message_boxes[carrier_index].consuming;
+        list_ctl_t *p, *t;
+        list_foreach_remove(p, target_queue, t) {
+            list_del(t);
+            struct p7r_internal_message *message = container_of(t, struct p7r_internal_message, linkable);
+            p7r_internal_handlers[P7R_MESSAGE_REAL_TYPE(message->type)](scheduler, message);    // XXX highly dangerous
         }
     }
 

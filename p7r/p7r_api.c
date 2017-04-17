@@ -23,7 +23,10 @@ void p7r_poolized_main_entrance(void *argument) {
 
 static
 int p7r_poolize_(struct p7r_config config) {
+    int ret = p7r_init(config);
     __auto_type allocator = p7r_root_alloc_get_proxy();
+    if (ret < 0)
+        return -1;
     uint32_t n_carriers = p7r_n_carriers();
     if (unlikely((meta_singleton.foreign_request_mutex = scraft_allocate(allocator, sizeof(pthread_spinlock_t) * n_carriers)) == NULL))
         return -1;
@@ -32,11 +35,6 @@ int p7r_poolize_(struct p7r_config config) {
     if (pipe(meta_singleton.startup_channel) == -1) {
         scraft_deallocate(allocator, (void *) meta_singleton.foreign_request_mutex);
         return -1;
-    }
-    int ret = p7r_init(config);
-    if (ret < 0) {
-        scraft_deallocate(allocator, (void *) meta_singleton.foreign_request_mutex);
-        return close(meta_singleton.startup_channel[0]), close(meta_singleton.startup_channel[1]), ret;
     }
     __atomic_store_n(&(meta_singleton.pool_alive), 1, __ATOMIC_RELAXED);
     return p7r_poolized_main_entrance(&meta_singleton), 0;
