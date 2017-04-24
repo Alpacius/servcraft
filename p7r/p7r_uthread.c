@@ -14,6 +14,9 @@
     } while (0)
 
 
+#define CP_BUFFER_RETRY_TIMES       5
+
+
 // globals
 
 static struct p7r_scheduler *schedulers;
@@ -22,6 +25,7 @@ static pthread_barrier_t carrier_barrier;
 static __thread struct p7r_carrier *self_carrier;
 static struct p7r_uthread main_uthread = { .scheduler_index = 0, .status = P7R_UTHREAD_RUNNING };
 static uint32_t balance_index = 0;
+static volatile uint32_t n_carriers = 1;
 
 #define next_balance_index __atomic_add_fetch(&balance_index, 1, __ATOMIC_ACQ_REL)
 
@@ -33,7 +37,7 @@ struct p7r_carrier *p7r_carriers(void) {
 }
 
 uint32_t p7r_n_carriers(void) {
-    return carriers ? carriers[0].scheduler->n_carriers : 0;
+    return likely(carriers != NULL) ? n_carriers : 0;
 }
 
 uint32_t balanced_target_carrier(void) {
@@ -273,13 +277,19 @@ int sched_bus_refresh(struct p7r_scheduler *scheduler) {
 
     // Phase 4 - iuc/u2cc handling
     for (uint32_t carrier_index = 0; carrier_index < scheduler->n_carriers; carrier_index++) {
-        list_ctl_t *target_queue = cp_buffer_consume(&(scheduler->bus.message_boxes[carrier_index]));
+        list_ctl_t *target_queue;
+        uint32_t n_retry_times = CP_BUFFER_RETRY_TIMES;
+        do {
+            target_queue = cp_buffer_consume(&(scheduler->bus.message_boxes[carrier_index]));
+        } while (!target_queue && --n_retry_times);
         scheduler->bus.consumed &= scheduler->bus.message_boxes[carrier_index].consuming;
-        list_ctl_t *p, *t;
-        list_foreach_remove(p, target_queue, t) {
-            list_del(t);
-            struct p7r_internal_message *message = container_of(t, struct p7r_internal_message, linkable);
-            p7r_internal_handlers[P7R_MESSAGE_REAL_TYPE(message->type)](scheduler, message);    // XXX highly dangerous
+        if (target_queue) {
+            list_ctl_t *p, *t;
+            list_foreach_remove(p, target_queue, t) {
+                list_del(t);
+                struct p7r_internal_message *message = container_of(t, struct p7r_internal_message, linkable);
+                p7r_internal_handlers[P7R_MESSAGE_REAL_TYPE(message->type)](scheduler, message);    // XXX highly dangerous
+            }
         }
     }
 
@@ -680,6 +690,7 @@ int p7r_init(struct p7r_config config) {
     __auto_type allocator = p7r_root_alloc_get_proxy();
     schedulers = scraft_allocate(allocator, sizeof(struct p7r_scheduler) * config.concurrency.n_carriers);
     carriers = scraft_allocate(allocator, sizeof(struct p7r_carrier) * config.concurrency.n_carriers);
+    n_carriers = config.concurrency.n_carriers;
     if (!schedulers || !carriers) {
         (!schedulers && (scraft_deallocate(allocator, schedulers), 0)), (!carriers && (scraft_deallocate(allocator, carriers), 0));
         return -1;
