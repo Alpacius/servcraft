@@ -2,6 +2,11 @@
 #include    "./p7r_root_alloc.h"
 
 
+#define     SCRAFT_ARENA_TYPE                   struct p7r_future
+#define     SCRAFT_ARENA_ENABLE_DEFAULT_TOKEN
+#include    "../util/scraft_arena.c"
+
+
 static
 struct p7r_poolized_meta {
     pthread_t main_thread;
@@ -9,6 +14,12 @@ struct p7r_poolized_meta {
     int startup_channel[2];
     pthread_spinlock_t *foreign_request_mutex;
 } meta_singleton = { .pool_alive = 0 };
+
+static
+struct {
+    uint32_t n_slots;
+    uint32_t n_elements;
+} default_arena_config = { .n_slots = 8, .n_elements = 512 };
 
 
 static
@@ -25,6 +36,12 @@ static
 int p7r_poolize_(struct p7r_config config) {
     int ret = p7r_init(config);
     __auto_type allocator = p7r_root_alloc_get_proxy();
+    if (scraft_arena_init(
+            allocator, 
+            config.arena.override_default ? config.arena.n_elements : default_arena_config.n_elements, 
+            config.arena.override_default ? config.arena.n_slots : default_arena_config.n_slots
+        ) == -1)
+        return -1;
     if (ret < 0)
         return -1;
     uint32_t n_carriers = p7r_n_carriers();
@@ -63,8 +80,28 @@ int p7r_execute(void (*entrance)(void *), void *argument, void (*dtor)(void *)) 
     int ret = -1;
     pthread_spin_lock(&(meta_singleton.foreign_request_mutex[target]));
     {
-        ret = p7r_uthread_create_foreign(target, entrance, argument, dtor);
+        ret = p7r_uthread_create_foreign(target, entrance, argument, dtor, NULL);
     }
     pthread_spin_unlock(&(meta_singleton.foreign_request_mutex[target]));
     return ret;
+}
+
+struct p7r_future *p7r_submit(void (*entrance)(void *), void *argument, void (*dtor)(void *)) {
+    struct p7r_future *result = scraft_arena_get();
+    if (unlikely(result == NULL))
+        return NULL;
+    p7r_future_init(result);
+    uint32_t target = balanced_target_carrier();
+    int ret = -1;
+    pthread_spin_lock(&(meta_singleton.foreign_request_mutex[target]));
+    {
+        ret = p7r_uthread_create_foreign(target, entrance, argument, dtor, result);
+    }
+    pthread_spin_unlock(&(meta_singleton.foreign_request_mutex[target]));
+    return result;
+}
+
+void p7r_future_release(struct p7r_future *future) {
+    p7r_future_ruin(future);
+    scraft_arena_release(future);
 }

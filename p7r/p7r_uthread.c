@@ -105,17 +105,18 @@ static inline
 struct p7r_uthread_request *p7r_uthread_request_init(
         struct p7r_uthread_request *request,
         void (*entrance)(void *),
-        void *argument) {
-    return (request->user_entrance = entrance), (request->user_argument = argument), request;
+        void *argument,
+        struct p7r_future *future) {
+    return (request->user_entrance = entrance), (request->user_argument = argument), (request->future = future), request;
 }
 
 static inline
-struct p7r_uthread_request *p7r_uthread_request_new(void (*entrance)(void *), void *argument) {
+struct p7r_uthread_request *p7r_uthread_request_new(void (*entrance)(void *), void *argument, struct p7r_future *future) {
     struct p7r_uthread_request *request = NULL;
     {
         __auto_type allocator = p7r_root_alloc_get_proxy();
         request = scraft_allocate(allocator, sizeof(struct p7r_uthread_request));
-        (request) && ((request->user_entrance = entrance), (request->user_argument = argument));
+        (request) && ((request->user_entrance = entrance), (request->user_argument = argument), (request->future = future));
     }
     return request;
 }
@@ -335,6 +336,7 @@ struct p7r_uthread *sched_uthread_from_request(
                 request.user_argument, 
                 &(scheduler->runners.stack_allocator),
                 stack_alloc_policy);
+    uthread->future = request.future;
     if (unlikely(uthread == NULL)) {
         if (request.user_argument_dtor)
             request.user_argument_dtor(request.user_argument);
@@ -558,7 +560,7 @@ int p7r_uthread_create_(void (*entrance)(void *), void *argument, void (*dtor)(v
         if (unlikely(request_message == NULL))
             return -1;
         struct p7r_uthread_request *request = (struct p7r_uthread_request *) &(request_message->content_buffer);
-        (request->user_entrance = entrance), (request->user_argument = argument), (request->user_argument_dtor = dtor);
+        (request->user_entrance = entrance), (request->user_argument = argument), (request->user_argument_dtor = dtor), (request->future = NULL);
         p7r_u2cc_message_post(target_carrier_index % n_carriers, self_carrier->index, request_message);
     } else {
         struct p7r_uthread_request request = { .user_entrance = entrance, .user_argument = argument };
@@ -622,14 +624,14 @@ int p7r_delegation_timed(struct p7r_scheduler *scheduler, struct p7r_delegation 
     return 1;
 }
 
-int p7r_uthread_create_foreign(uint32_t target_carrier_index, void (*entrance)(void *), void *argument, void (*dtor)(void *)) {
+int p7r_uthread_create_foreign(uint32_t target_carrier_index, void (*entrance)(void *), void *argument, void (*dtor)(void *), struct p7r_future *future) {
     uint32_t n_carriers = carriers[target_carrier_index].scheduler->n_carriers;
 
     struct p7r_internal_message *request_message = p7r_u2cc_message_raw(P7R_MESSAGE_UTHREAD_REQUEST, sizeof(struct p7r_uthread_request));
     if (unlikely(request_message == NULL))
         return -1;
     struct p7r_uthread_request *request = (struct p7r_uthread_request *) &(request_message->content_buffer);
-    (request->user_entrance = entrance), (request->user_argument = argument), (request->user_argument_dtor = dtor);
+    (request->user_entrance = entrance), (request->user_argument = argument), (request->user_argument_dtor = dtor), (request->future = future);
     p7r_u2cc_message_post(target_carrier_index % n_carriers, carriers[target_carrier_index % n_carriers].index, request_message);
 
     return 0;
@@ -675,6 +677,10 @@ struct p7r_delegation p7r_delegate(uint64_t events, ...) {
     p7r_blocking_point();
 
     return delegation;
+}
+
+struct p7r_future *p7r_get_future(void) {
+    return self_carrier->scheduler->runners.running->future;
 }
 
 int p7r_init(struct p7r_config config) {
